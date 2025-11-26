@@ -15,6 +15,8 @@ const usage =
     \\  -c, --cols N         Terminal width in columns (default: 120)
     \\  -r, --rows N         Terminal height in rows (default: 40)
     \\  -o, --output FILE    Write output to FILE instead of stdout
+    \\  --offset N           Start from line N (0 = first line, for pagination)
+    \\  --limit N            Maximum number of lines to output (default: all)
     \\  -h, --help           Show this help message
     \\
     \\JSON Output Format:
@@ -22,6 +24,8 @@ const usage =
     \\    "cols": 80,
     \\    "rows": 24,
     \\    "cursor": [x, y],
+    \\    "offset": 0,
+    \\    "totalLines": 100,
     \\    "lines": [
     \\      [["text", "#fg", "#bg", flags, width], ...]
     \\    ]
@@ -127,9 +131,18 @@ fn writeColor(writer: anytype, rgb: ?color.RGB) !void {
 fn writeJsonOutput(
     writer: anytype,
     t: *ghostty_vt.Terminal,
+    offset: usize,
+    limit: ?usize,
 ) !void {
     const screen = t.screens.active;
     const palette = &t.colors.palette.current;
+
+    // Count total lines
+    var total_lines: usize = 0;
+    var count_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
+    while (count_iter.next()) |_| {
+        total_lines += 1;
+    }
 
     try writer.writeAll("{");
 
@@ -139,6 +152,9 @@ fn writeJsonOutput(
     // Write cursor position
     try writer.print("\"cursor\":[{},{}],", .{ screen.cursor.x, screen.cursor.y });
 
+    // Write pagination info
+    try writer.print("\"offset\":{},\"totalLines\":{},", .{ offset, total_lines });
+
     // Write lines
     try writer.writeAll("\"lines\":[");
 
@@ -146,9 +162,21 @@ fn writeJsonOutput(
 
     var row_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
     var row_idx: usize = 0;
+    var output_idx: usize = 0;
 
     while (row_iter.next()) |pin| {
-        if (row_idx > 0) try writer.writeByte(',');
+        // Skip rows before offset
+        if (row_idx < offset) {
+            row_idx += 1;
+            continue;
+        }
+
+        // Stop if we've reached the limit
+        if (limit) |lim| {
+            if (output_idx >= lim) break;
+        }
+
+        if (output_idx > 0) try writer.writeByte(',');
         try writer.writeByte('[');
 
         const cells = pin.cells(.all);
@@ -226,6 +254,7 @@ fn writeJsonOutput(
 
         try writer.writeByte(']');
         row_idx += 1;
+        output_idx += 1;
     }
 
     try writer.writeAll("]}");
@@ -240,6 +269,8 @@ pub fn main() !void {
     var rows: u16 = 40;
     var input_file: ?[]const u8 = null;
     var output_file: ?[]const u8 = null;
+    var offset: usize = 0;
+    var limit: ?usize = null;
 
     const args = try std.process.argsAlloc(alloc);
     defer std.process.argsFree(alloc, args);
@@ -280,6 +311,26 @@ pub fn main() !void {
                 std.process.exit(1);
             }
             output_file = args[i];
+        } else if (std.mem.eql(u8, arg, "--offset")) {
+            i += 1;
+            if (i >= args.len) {
+                std.debug.print("Error: --offset requires an argument\n", .{});
+                std.process.exit(1);
+            }
+            offset = std.fmt.parseInt(usize, args[i], 10) catch {
+                std.debug.print("Error: invalid offset: {s}\n", .{args[i]});
+                std.process.exit(1);
+            };
+        } else if (std.mem.eql(u8, arg, "--limit")) {
+            i += 1;
+            if (i >= args.len) {
+                std.debug.print("Error: --limit requires an argument\n", .{});
+                std.process.exit(1);
+            }
+            limit = std.fmt.parseInt(usize, args[i], 10) catch {
+                std.debug.print("Error: invalid limit: {s}\n", .{args[i]});
+                std.process.exit(1);
+            };
         } else if (arg[0] != '-') {
             input_file = arg;
         } else {
@@ -330,7 +381,7 @@ pub fn main() !void {
 
     var out_buf: [8192]u8 = undefined;
     var out_writer = output.writer(&out_buf);
-    try writeJsonOutput(&out_writer.interface, &t);
+    try writeJsonOutput(&out_writer.interface, &t, offset, limit);
     try out_writer.interface.flush();
 }
 
@@ -348,9 +399,10 @@ test "basic JSON output" {
     var output = std.ArrayList(u8).init(alloc);
     defer output.deinit();
 
-    try writeJsonOutput(output.writer(), &t);
+    try writeJsonOutput(output.writer(), &t, 0, null);
 
     const json = output.items;
     try testing.expect(std.mem.indexOf(u8, json, "\"cols\":80") != null);
+    try testing.expect(std.mem.indexOf(u8, json, "\"totalLines\":") != null);
     try testing.expect(std.mem.indexOf(u8, json, "\"Hello\"") != null);
 }
