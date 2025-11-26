@@ -6,7 +6,7 @@ import {
   type RenderContext,
   type TextChunk,
 } from "@opentui/core"
-import { type TerminalData, type TerminalSpan, StyleFlags } from "./ffi"
+import { ptyToJson, type TerminalData, type TerminalSpan, StyleFlags } from "./ffi"
 
 const DEFAULT_FG = RGBA.fromHex("#d4d4d4")
 
@@ -66,10 +66,15 @@ export function terminalDataToStyledText(data: TerminalData): StyledText {
 }
 
 export interface TerminalBufferOptions extends TextBufferOptions {
-  data: TerminalData
+  input: string | Buffer
+  cols?: number
+  rows?: number
 }
 
 export class TerminalBufferRenderable extends TextBufferRenderable {
+  private _input: string | Buffer
+  private _cols: number
+  private _rows: number
   private _data: TerminalData
 
   constructor(ctx: RenderContext, options: TerminalBufferOptions) {
@@ -79,19 +84,51 @@ export class TerminalBufferRenderable extends TextBufferRenderable {
       wrapMode: "none",
     })
 
-    this._data = options.data
+    this._input = options.input
+    this._cols = options.cols ?? 120
+    this._rows = options.rows ?? 40
+    this._data = ptyToJson(this._input, { cols: this._cols, rows: this._rows })
     this.updateContent()
+  }
+
+  get input(): string | Buffer {
+    return this._input
+  }
+
+  set input(value: string | Buffer) {
+    if (this._input !== value) {
+      this._input = value
+      this._data = ptyToJson(this._input, { cols: this._cols, rows: this._rows })
+      this.updateContent()
+    }
+  }
+
+  get cols(): number {
+    return this._cols
+  }
+
+  set cols(value: number) {
+    if (this._cols !== value) {
+      this._cols = value
+      this._data = ptyToJson(this._input, { cols: this._cols, rows: this._rows })
+      this.updateContent()
+    }
+  }
+
+  get rows(): number {
+    return this._rows
+  }
+
+  set rows(value: number) {
+    if (this._rows !== value) {
+      this._rows = value
+      this._data = ptyToJson(this._input, { cols: this._cols, rows: this._rows })
+      this.updateContent()
+    }
   }
 
   get data(): TerminalData {
     return this._data
-  }
-
-  set data(value: TerminalData) {
-    if (this._data !== value) {
-      this._data = value
-      this.updateContent()
-    }
   }
 
   private updateContent(): void {

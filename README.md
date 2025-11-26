@@ -45,7 +45,7 @@ console.log(data.cursor) // [col, row] cursor position
 ```tsx
 import { createCliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, extend } from "@opentui/react"
-import { ptyToJson, TerminalBufferRenderable } from "opentui-ansi-vt"
+import { TerminalBufferRenderable } from "opentui-ansi-vt/terminal-buffer"
 
 // Register the terminal-buffer component
 extend({ "terminal-buffer": TerminalBufferRenderable })
@@ -60,11 +60,9 @@ function App() {
     if (key.name === "q") process.exit(0)
   })
 
-  const data = ptyToJson(ANSI, { cols: 80, rows: 24 })
-
   return (
     <scrollbox focused style={{ flexGrow: 1 }}>
-      <terminal-buffer data={data} />
+      <terminal-buffer input={ANSI} cols={80} rows={24} />
     </scrollbox>
   )
 }
@@ -78,7 +76,7 @@ createRoot(renderer).render(<App />)
 ```tsx
 import { createCliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, extend } from "@opentui/solid"
-import { ptyToJson, TerminalBufferRenderable } from "opentui-ansi-vt"
+import { TerminalBufferRenderable } from "opentui-ansi-vt/terminal-buffer"
 
 // Register the terminal-buffer component
 extend({ "terminal-buffer": TerminalBufferRenderable })
@@ -93,11 +91,9 @@ function App() {
     if (key.name === "q") process.exit(0)
   })
 
-  const data = ptyToJson(ANSI, { cols: 80, rows: 24 })
-
   return (
     <scrollbox focused style={{ "flex-grow": 1 }}>
-      <terminal-buffer data={data} />
+      <terminal-buffer input={ANSI} cols={80} rows={24} />
     </scrollbox>
   )
 }
@@ -108,7 +104,7 @@ createRoot(renderer).render(<App />)
 
 ### Terminal Buffer Component
 
-The `<terminal-buffer>` component renders parsed terminal data with full styling support. 
+The `<terminal-buffer>` component accepts raw ANSI input and renders it with full styling support. 
 
 **Important**: You must call `extend()` to register the component before using it in JSX:
 
@@ -119,8 +115,11 @@ import { TerminalBufferRenderable } from "opentui-ansi-vt/terminal-buffer"
 // Register the component
 extend({ "terminal-buffer": TerminalBufferRenderable })
 
-// Now you can use it
-<terminal-buffer data={terminalData} />
+// Now you can use it with raw ANSI input
+<terminal-buffer input={ansiString} cols={80} rows={24} />
+
+// cols and rows are optional (defaults: cols=120, rows=40)
+<terminal-buffer input={ansiString} />
 ```
 
 ### API
@@ -130,7 +129,7 @@ extend({ "terminal-buffer": TerminalBufferRenderable })
 ```typescript
 import { ptyToJson, type TerminalData } from "opentui-ansi-vt"
 
-// Parse ANSI data
+// Parse ANSI data (if you need direct access to the data structure)
 const data = ptyToJson(input, options)
 ```
 
@@ -142,6 +141,9 @@ import { extend } from "@opentui/react" // or "@opentui/solid"
 
 // Register component
 extend({ "terminal-buffer": TerminalBufferRenderable })
+
+// Use in JSX (component calls ptyToJson internally)
+<terminal-buffer input={ansiString} cols={80} rows={24} />
 ```
 
 ### TypeScript Types
@@ -174,6 +176,12 @@ interface TerminalSpan {
   bg: string | null
   flags: number       // StyleFlags bitmask
   width: number
+}
+
+interface TerminalBufferOptions {
+  input: string | Buffer  // Raw ANSI input
+  cols?: number           // Terminal width (default: 120)
+  rows?: number           // Terminal height (default: 40)
 }
 
 // StyleFlags: bold=1, italic=2, underline=4, strikethrough=8, inverse=16, faint=32

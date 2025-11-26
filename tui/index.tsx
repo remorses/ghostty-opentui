@@ -1,38 +1,32 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, extend } from "@opentui/react"
-import { ptyToJson, type TerminalData } from "./ffi"
 import { TerminalBufferRenderable } from "./terminal-buffer"
 
 // Register the terminal-buffer component
 extend({ "terminal-buffer": TerminalBufferRenderable })
 
-export function TerminalView({ data }: { data: TerminalData }) {
+export function TerminalView({ input }: { input: string | Buffer }) {
   return (
-    <box style={{ flexDirection: "column", flexGrow: 1 }}>
+    <box style={{ flexDirection: "column", backgroundColor: "black", flexGrow: 1 }}>
       <scrollbox
         focused
         padding={3}
         style={{ flexGrow: 1 }}
       >
-        <terminal-buffer data={data} />
+        <terminal-buffer input={input} cols={120} rows={120} />
       </scrollbox>
-      <box style={{ height: 1, paddingLeft: 1 }}>
-        <text fg="#8b949e">
-          {data.cols}x{data.rows} | Cursor: ({data.cursor[0]}, {data.cursor[1]}) | Lines: {data.totalLines}
-        </text>
-      </box>
     </box>
   )
 }
 
-function App({ data }: { data: TerminalData }) {
+function App({ input }: { input: string | Buffer }) {
   useKeyboard((key) => {
     if (key.name === "q" || key.name === "escape") {
       process.exit(0)
     }
   })
 
-  return <TerminalView data={data} />
+  return <TerminalView input={input} />
 }
 
 const SAMPLE_ANSI = `\x1b[1;32muser@hostname\x1b[0m:\x1b[1;34m~/projects/my-app\x1b[0m$ ls -la
@@ -153,8 +147,6 @@ if (import.meta.main) {
     input = SAMPLE_ANSI
   }
 
-  const data = ptyToJson(input, { cols: 120, rows: 120 })
-
   const renderer = await createCliRenderer({ exitOnCtrlC: true })
-  createRoot(renderer).render(<App data={data} />)
+  createRoot(renderer).render(<App input={input} />)
 }
