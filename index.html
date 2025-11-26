@@ -143,8 +143,10 @@
       
       // Update info
       const totalSpans = lines.reduce((acc, line) => acc + line.length, 0);
+      const offset = data.offset ?? 0;
+      const totalLines = data.totalLines ?? lines.length;
       document.getElementById('info-text').textContent = 
-        `${cols}x${rows} | Cursor: (${cursor[0]}, ${cursor[1]}) | ${lines.length} lines | ${totalSpans} spans`;
+        `${cols}x${rows} | Cursor: (${cursor[0]}, ${cursor[1]}) | Lines: ${offset}-${offset + lines.length} of ${totalLines} | ${totalSpans} spans`;
     }
     
     function renderFromTextarea() {
@@ -186,22 +188,44 @@
     }
     
     function loadSample() {
+      // Sample based on testdata/session.log - a typical ls -la output
       const sample = {
-        "cols": 80,
-        "rows": 24,
-        "cursor": [0, 3],
+        "cols": 120,
+        "rows": 40,
+        "cursor": [0, 31],
+        "offset": 0,
+        "totalLines": 40,
         "lines": [
-          [["$ ", "#00ff00", null, 1, 2], ["ls -la", "#d4d4d4", null, 0, 6]],
-          [["total 188", "#d4d4d4", null, 0, 9]],
-          [["drwxr-xr-x", "#d4d4d4", null, 0, 10], [" 15 user user ", "#d4d4d4", null, 0, 14], ["Documents", "#81a2be", null, 1, 9]],
-          [["drwxr-xr-x", "#d4d4d4", null, 0, 10], ["  8 user user ", "#d4d4d4", null, 0, 14], ["Downloads", "#81a2be", null, 1, 9]],
-          [["-rw-r--r--", "#d4d4d4", null, 0, 10], ["  1 user user ", "#d4d4d4", null, 0, 14], ["README.md", "#d4d4d4", null, 0, 9]],
-          [["-rwxr-xr-x", "#d4d4d4", null, 0, 10], ["  1 user user ", "#d4d4d4", null, 0, 14], ["script.sh", "#00ff00", null, 1, 9]],
+          [["[kevin@srv", null, null, 0, 10], ["devtoolsd]$", null, null, 0, 11], ["ls", null, null, 0, 2], ["-al", null, null, 0, 3]],
+          [["total", null, null, 0, 5], ["188", null, null, 0, 3]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["15", null, null, 0, 2], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["4096", null, null, 0, 4], ["Nov", null, null, 0, 3], ["24", null, null, 0, 2], ["22:27", null, null, 0, 5], [".", "#81a2be", null, 1, 1]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["4", null, null, 0, 1], ["root", null, null, 0, 4], ["root", null, null, 0, 4], ["36", null, null, 0, 2], ["Nov", null, null, 0, 3], ["18", null, null, 0, 2], ["18:39", null, null, 0, 5], ["..", "#81a2be", null, 1, 2]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["3", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["68", null, null, 0, 2], ["Nov", null, null, 0, 3], ["19", null, null, 0, 2], ["11:51", null, null, 0, 5], [".android", "#81a2be", null, 1, 8]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["8", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["154", null, null, 0, 3], ["Nov", null, null, 0, 3], ["19", null, null, 0, 2], ["11:49", null, null, 0, 5], ["Android", "#81a2be", null, 1, 7]],
+          [["-rw-------.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["35544", null, null, 0, 5], ["Nov", null, null, 0, 3], ["24", null, null, 0, 2], ["21:54", null, null, 0, 5], [".bash_history", null, null, 0, 13]],
+          [["-rw-r--r--.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["18", null, null, 0, 2], ["Oct", null, null, 0, 3], ["28", null, null, 0, 2], ["2024", null, null, 0, 4], [".bash_logout", null, null, 0, 12]],
+          [["-rw-r--r--.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["144", null, null, 0, 3], ["Oct", null, null, 0, 3], ["28", null, null, 0, 2], ["2024", null, null, 0, 4], [".bash_profile", null, null, 0, 13]],
+          [["-rw-r--r--.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["567", null, null, 0, 3], ["Nov", null, null, 0, 3], ["21", null, null, 0, 2], ["00:15", null, null, 0, 5], [".bashrc", null, null, 0, 7]],
+          [["drwx------.", null, null, 0, 11], ["4", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["40", null, null, 0, 2], ["Nov", null, null, 0, 3], ["18", null, null, 0, 2], ["22:56", null, null, 0, 5], [".cache", "#81a2be", null, 1, 6]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["10", null, null, 0, 2], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["184", null, null, 0, 3], ["Nov", null, null, 0, 3], ["24", null, null, 0, 2], ["15:59", null, null, 0, 5], [".claude", "#81a2be", null, 1, 7]],
+          [["-rw-------.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["46035", null, null, 0, 5], ["Nov", null, null, 0, 3], ["24", null, null, 0, 2], ["15:59", null, null, 0, 5], [".claude.json", null, null, 0, 12]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["4", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["110", null, null, 0, 3], ["Nov", null, null, 0, 3], ["20", null, null, 0, 2], ["22:39", null, null, 0, 5], [".codex", "#81a2be", null, 1, 6]],
+          [["drwx------.", null, null, 0, 11], ["8", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["96", null, null, 0, 2], ["Nov", null, null, 0, 3], ["20", null, null, 0, 2], ["13:19", null, null, 0, 5], [".config", "#81a2be", null, 1, 7]],
+          [["-rw-r--r--.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["159", null, null, 0, 3], ["Nov", null, null, 0, 3], ["19", null, null, 0, 2], ["14:30", null, null, 0, 5], [".gitconfig", null, null, 0, 10]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["5", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["49", null, null, 0, 2], ["Nov", null, null, 0, 3], ["24", null, null, 0, 2], ["11:37", null, null, 0, 5], ["gitlab_snapshot", "#81a2be", null, 1, 15]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["10", null, null, 0, 2], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["123", null, null, 0, 3], ["Nov", null, null, 0, 3], ["19", null, null, 0, 2], ["11:43", null, null, 0, 5], [".gradle", "#81a2be", null, 1, 7]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["3", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["19", null, null, 0, 2], ["Nov", null, null, 0, 3], ["18", null, null, 0, 2], ["21:24", null, null, 0, 5], [".local", "#81a2be", null, 1, 6]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["4", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["35", null, null, 0, 2], ["Nov", null, null, 0, 3], ["18", null, null, 0, 2], ["22:55", null, null, 0, 5], [".npm", "#81a2be", null, 1, 4]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["5", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["44", null, null, 0, 2], ["Nov", null, null, 0, 3], ["21", null, null, 0, 2], ["15:33", null, null, 0, 5], ["prod", "#81a2be", null, 1, 4]],
+          [["drwx------.", null, null, 0, 11], ["2", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["102", null, null, 0, 3], ["Nov", null, null, 0, 3], ["19", null, null, 0, 2], ["10:28", null, null, 0, 5], [".ssh", "#81a2be", null, 1, 4]],
+          [["drwxr-xr-x.", null, null, 0, 11], ["2", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["24", null, null, 0, 2], ["Nov", null, null, 0, 3], ["18", null, null, 0, 2], ["22:59", null, null, 0, 5], [".vim", "#81a2be", null, 1, 4]],
+          [["-rw-------.", null, null, 0, 11], ["1", null, null, 0, 1], ["devtoolsd", null, null, 0, 9], ["devtoolsd", null, null, 0, 9], ["24334", null, null, 0, 5], ["Nov", null, null, 0, 3], ["24", null, null, 0, 2], ["22:27", null, null, 0, 5], [".viminfo", null, null, 0, 8]],
+          [["[kevin@srv", null, null, 0, 10], ["devtoolsd]$", null, null, 0, 11], ["exit", null, null, 0, 4]],
+          [["exit", null, null, 0, 4]],
           [],
-          [["$ ", "#00ff00", null, 1, 2], ["echo ", "#d4d4d4", null, 0, 5], ["\"Hello World\"", "#f1fa8c", null, 0, 13]],
-          [["Hello World", "#d4d4d4", null, 0, 11]],
           [],
-          [["$ ", "#00ff00", null, 1, 2]]
+          [],
+          []
         ]
       };
       document.getElementById('json-input').value = JSON.stringify(sample, null, 2);
