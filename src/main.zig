@@ -411,10 +411,10 @@ test "basic JSON output" {
 
     try stream.nextSlice("Hello");
 
-    var output = std.ArrayList(u8).init(alloc);
-    defer output.deinit();
+    var output: std.ArrayList(u8) = .empty;
+    defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(), &t, 0, null);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
 
     const json = output.items;
     try testing.expect(std.mem.indexOf(u8, json, "\"cols\":80") != null);
