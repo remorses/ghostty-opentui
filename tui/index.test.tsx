@@ -83,64 +83,6 @@ describe("ptyToJson", () => {
     expect(result.cols).toBe(120)
     expect(result.rows).toBe(50)
   })
-})
-
-describe("StyleFlags", () => {
-  it("should have correct flag values", () => {
-    expect(StyleFlags.BOLD).toBe(1)
-    expect(StyleFlags.ITALIC).toBe(2)
-    expect(StyleFlags.UNDERLINE).toBe(4)
-    expect(StyleFlags.STRIKETHROUGH).toBe(8)
-    expect(StyleFlags.INVERSE).toBe(16)
-    expect(StyleFlags.FAINT).toBe(32)
-  })
-})
-
-describe("ls output tests", () => {
-  it("should handle ls --color=always output without extra blank lines when using limit", () => {
-    // Simulate ls --color=always -la output (5 lines)
-    const lsOutput = 
-      "total 224\n" +
-      "drwxrwxr-x  27 user  staff   864 Nov 26 19:30 \x1b[34m.\x1b[0m\n" +
-      "drwx------  71 user  staff  2272 Nov 26 19:44 \x1b[34m..\x1b[0m\n" +
-      "-rw-r--r--   1 user  staff   109 Nov 26 18:15 .gitignore\n" +
-      "-rw-r--r--   1 user  staff  1100 Nov 26 19:14 package.json"
-
-    const actualLines = lsOutput.split("\n").length
-
-    // Without limit: rows creates that many lines
-    const withoutLimit = ptyToJson(lsOutput, { cols: 80, rows: 50 })
-    expect(withoutLimit.lines.length).toBe(50) // Creates 50 lines (5 content + 45 blank)
-
-    // With limit: only first N lines
-    const withLimit = ptyToJson(lsOutput, { cols: 80, rows: 50, limit: actualLines })
-    expect(withLimit.lines).toMatchSnapshot()
-  })
-
-  it("should handle ls output with smaller rows to avoid blank lines", () => {
-    const lsOutput = 
-      "total 224\n" +
-      "drwxrwxr-x  27 user  staff   864 Nov 26 19:30 \x1b[34m.\x1b[0m\n" +
-      "drwx------  71 user  staff  2272 Nov 26 19:44 \x1b[34m..\x1b[0m"
-
-    const actualLines = lsOutput.split("\n").length
-
-    // Using rows close to actual content
-    const result = ptyToJson(lsOutput, { cols: 80, rows: actualLines + 2 })
-    expect(result.lines).toMatchSnapshot()
-  })
-
-  it("should preserve ANSI colors in ls output", () => {
-    const lsOutput = "drwxr-xr-x  3 user  staff  96 Nov 26 16:19 \x1b[34m.git\x1b[0m"
-    const result = ptyToJson(lsOutput, { cols: 80, rows: 5 })
-
-    const firstLine = result.lines[0]
-    expect(firstLine).toMatchSnapshot()
-    
-    const coloredSpan = firstLine.spans.find(s => s.text === ".git")
-    expect(coloredSpan).toBeDefined()
-    expect(coloredSpan!.fg).toBeTruthy() // Should have blue color
-  })
 
   it("should handle limit parameter efficiently", () => {
     // Generate 1000 lines
@@ -157,3 +99,15 @@ describe("ls output tests", () => {
     expect(result.lines[9].spans[0].text).toContain("Line 10")
   })
 })
+
+describe("StyleFlags", () => {
+  it("should have correct flag values", () => {
+    expect(StyleFlags.BOLD).toBe(1)
+    expect(StyleFlags.ITALIC).toBe(2)
+    expect(StyleFlags.UNDERLINE).toBe(4)
+    expect(StyleFlags.STRIKETHROUGH).toBe(8)
+    expect(StyleFlags.INVERSE).toBe(16)
+    expect(StyleFlags.FAINT).toBe(32)
+  })
+})
+

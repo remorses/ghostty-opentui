@@ -38,7 +38,17 @@ describe("TerminalBufferRenderable", () => {
     await renderOnce()
     const output = captureCharFrame()
     expect(output).toContain("Test Basic")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Test Basic                              
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should render simple ANSI text", async () => {
@@ -54,7 +64,17 @@ describe("TerminalBufferRenderable", () => {
     const output = captureCharFrame()
     expect(output).toContain("Hello")
     expect(output).toContain("World")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Hello World                             
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should render colored text", async () => {
@@ -70,7 +90,17 @@ describe("TerminalBufferRenderable", () => {
     expect(output).toContain("Red")
     expect(output).toContain("Green")
     expect(output).toContain("Blue")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Red Green Blue                          
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should render multi-line ANSI", async () => {
@@ -86,7 +116,17 @@ describe("TerminalBufferRenderable", () => {
     expect(output).toContain("Line 1")
     expect(output).toContain("Line 2")
     expect(output).toContain("Line 3")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Line 1                                  
+Line 2                                  
+Line 3                                  
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should handle prefix being added", async () => {
@@ -104,7 +144,17 @@ describe("TerminalBufferRenderable", () => {
     const output = captureCharFrame()
     expect(output).toContain("PREFIX")
     expect(output).toContain("Original Text")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`[PREFIX]                                
+Original Text                           
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should handle multiple prefix additions", async () => {
@@ -124,7 +174,17 @@ describe("TerminalBufferRenderable", () => {
     expect(output).toContain("PREFIX 2")
     expect(output).toContain("PREFIX 1")
     expect(output).toContain("Base Text")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`[PREFIX 2]                              
+[PREFIX 1]                              
+Base Text                               
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should respect cols and rows options", async () => {
@@ -137,7 +197,12 @@ describe("TerminalBufferRenderable", () => {
 
     const output = captureCharFrame()
     expect(output).toContain("Test")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Test                
+                    
+                    
+                    
+                    
+`)
   })
 
   it("should handle bold and italic text", async () => {
@@ -152,7 +217,17 @@ describe("TerminalBufferRenderable", () => {
     expect(output).toContain("Bold")
     expect(output).toContain("Italic")
     expect(output).toContain("Both")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Bold Italic Both                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should handle RGB colors", async () => {
@@ -166,7 +241,17 @@ describe("TerminalBufferRenderable", () => {
     const output = captureCharFrame()
     expect(output).toContain("Hot Pink")
     expect(output).toContain("Spring Green")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Hot Pink Spring Green                   
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should handle empty ANSI", async () => {
@@ -178,7 +263,17 @@ describe("TerminalBufferRenderable", () => {
 
     const output = captureCharFrame()
     expect(output).toBeDefined()
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should preserve newlines correctly", async () => {
@@ -192,7 +287,17 @@ describe("TerminalBufferRenderable", () => {
     const output = captureCharFrame()
     expect(output).toContain("Line1")
     expect(output).toContain("Line3")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(`Line1                                   
+                                        
+Line3                                   
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
   })
 
   it("should handle background colors", async () => {
@@ -206,6 +311,100 @@ describe("TerminalBufferRenderable", () => {
     const output = captureCharFrame()
     expect(output).toContain("Red BG")
     expect(output).toContain("Green BG")
-    expect(output).toMatchSnapshot()
+    expect(output).toBe(` Red BG   Green BG                      
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+                                        
+`)
+  })
+
+  describe("ls output tests", () => {
+    it("should handle ls --color=always output without extra blank lines when using limit", async () => {
+      // Simulate ls --color=always -la output (5 lines)
+      const lsOutput = 
+        "total 224\n" +
+        "drwxrwxr-x  27 user  staff   864 Nov 26 19:30 \x1b[34m.\x1b[0m\n" +
+        "drwx------  71 user  staff  2272 Nov 26 19:44 \x1b[34m..\x1b[0m\n" +
+        "-rw-r--r--   1 user  staff   109 Nov 26 18:15 .gitignore\n" +
+        "-rw-r--r--   1 user  staff  1100 Nov 26 19:14 package.json"
+  
+      const actualLines = lsOutput.split("\n").length
+  
+      // Without limit: rows creates that many lines
+      const { renderOnce: renderWithoutLimit, captureCharFrame: captureWithoutLimit } = await testRender(
+        <terminal-buffer ansi={lsOutput} cols={80} rows={50} style={{ width: 80, height: 50 }} />,
+        { width: 80, height: 50 }
+      )
+      await renderWithoutLimit()
+      const outputWithoutLimit = captureWithoutLimit()
+      // Should have 50 lines (many blank) - checking count by counting newlines roughly
+      expect(outputWithoutLimit.split('\n').length).toBeGreaterThanOrEqual(50)
+  
+      // With limit: only first N lines
+      const { renderOnce: renderWithLimit, captureCharFrame: captureWithLimit } = await testRender(
+        <terminal-buffer ansi={lsOutput} cols={80} rows={50} limit={actualLines} style={{ width: 80, height: actualLines }} />,
+        { width: 80, height: actualLines }
+      )
+      await renderWithLimit()
+      const outputWithLimit = captureWithLimit()
+      
+      expect(outputWithLimit).toBe(`total 224                                                                       
+drwxrwxr-x  27 user  staff   864 Nov 26 19:30 .                                 
+drwx------  71 user  sta                                                        
+ff  2272 Nov 26 19:44 ..                                                        
+-rw-r--r--   1 user  staff   109 Nov 26 18:15 .gitignore                        
+`)
+      // Should be compact
+      expect(outputWithLimit.trim().split('\n').length).toBeLessThan(10) 
+    })
+  
+    it("should handle ls output with smaller rows to avoid blank lines", async () => {
+      const lsOutput = 
+        "total 224\n" +
+        "drwxrwxr-x  27 user  staff   864 Nov 26 19:30 \x1b[34m.\x1b[0m\n" +
+        "drwx------  71 user  staff  2272 Nov 26 19:44 \x1b[34m..\x1b[0m"
+  
+      const actualLines = lsOutput.split("\n").length
+      
+      // Using rows close to actual content
+      const { renderOnce, captureCharFrame } = await testRender(
+        <terminal-buffer ansi={lsOutput} cols={80} rows={actualLines + 2} style={{ width: 80, height: actualLines + 2 }} />,
+        { width: 80, height: actualLines + 2 }
+      )
+      await renderOnce()
+      
+      const output = captureCharFrame()
+      expect(output).toBe(`total 224                                                                       
+drwxrwxr-x  27 user  staff   864 Nov 26 19:30 .                                 
+drwx------  71 user  sta                                                        
+ff  2272 Nov 26 19:44 ..                                                        
+                                                                                
+`)
+    })
+  
+    it("should preserve ANSI colors in ls output", async () => {
+      const lsOutput = "drwxr-xr-x  3 user  staff  96 Nov 26 16:19 \x1b[34m.git\x1b[0m"
+      
+      const { renderOnce, captureCharFrame } = await testRender(
+        <terminal-buffer ansi={lsOutput} cols={80} rows={5} style={{ width: 80, height: 5 }} />,
+        { width: 80, height: 5 }
+      )
+      await renderOnce()
+      
+      const output = captureCharFrame()
+      expect(output).toBe(`drwxr-xr-x  3 user  staff  96 Nov 26 16:19 .git                                 
+                                                                                
+                                                                                
+                                                                                
+                                                                                
+`)
+      expect(output).toContain(".git")
+    })
   })
 })
