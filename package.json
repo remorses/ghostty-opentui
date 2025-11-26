@@ -33,7 +33,7 @@
     "url": "https://github.com/remorses/opentui-ansi-vt"
   },
   "peerDependencies": {
-    "@opentui/core": "*"
+    "@opentui/core": ""
   },
   "peerDependenciesMeta": {
     "@opentui/core": {

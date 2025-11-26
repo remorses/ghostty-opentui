@@ -10,7 +10,7 @@
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
-        "@opentui/core": "*",
+        "@opentui/core": "",
       },
       "optionalPeers": [
         "@opentui/core",
