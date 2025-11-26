@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.2.2
+
+### Bug Fixes
+
+- **zig**: Disable all logging from ghostty-vt library
+  - Suppresses unwanted console messages (e.g., "adjusting page opacity") when using the package
+
 ## 1.2.1
 
 ### Bug Fixes
