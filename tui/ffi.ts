@@ -111,7 +111,10 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
 
   const inputBuffer = typeof input === "string" ? Buffer.from(input) : input
   const inputArray = inputBuffer instanceof Buffer ? new Uint8Array(inputBuffer) : inputBuffer
-  const inputPtr = ptr(inputArray)
+  
+  // Handle empty input (bun:ffi throws on empty array pointer)
+  const safeInputArray = inputArray.length === 0 ? new Uint8Array(1) : inputArray
+  const inputPtr = ptr(safeInputArray)
 
   const outLenBuffer = new BigUint64Array(1)
   const outLenPtr = ptr(outLenBuffer)
