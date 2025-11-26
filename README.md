@@ -93,7 +93,7 @@ function App() {
 
   return (
     <scrollbox focused style={{ "flex-grow": 1 }}>
-      <terminal-buffer input={ANSI} cols={80} rows={24} />
+      <terminal-buffer ansi={ANSI} cols={80} rows={24} />
     </scrollbox>
   )
 }
