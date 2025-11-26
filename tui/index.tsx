@@ -5,28 +5,28 @@ import { TerminalBufferRenderable } from "./terminal-buffer"
 // Register the terminal-buffer component
 extend({ "terminal-buffer": TerminalBufferRenderable })
 
-export function TerminalView({ input }: { input: string | Buffer }) {
+export function TerminalView({ ansi }: { ansi: string | Buffer }) {
   return (
-    <box style={{ flexDirection: "column", backgroundColor: "black", flexGrow: 1 }}>
+    <box style={{ flexDirection: "column", flexGrow: 1 }}>
       <scrollbox
         focused
         padding={3}
         style={{ flexGrow: 1 }}
       >
-        <terminal-buffer input={input} cols={120} rows={120} />
+        <terminal-buffer ansi={ansi} cols={120} rows={120} />
       </scrollbox>
     </box>
   )
 }
 
-function App({ input }: { input: string | Buffer }) {
+function App({ ansi }: { ansi: string | Buffer }) {
   useKeyboard((key) => {
     if (key.name === "q" || key.name === "escape") {
       process.exit(0)
     }
   })
 
-  return <TerminalView input={input} />
+  return <TerminalView ansi={ansi} />
 }
 
 const SAMPLE_ANSI = `\x1b[1;32muser@hostname\x1b[0m:\x1b[1;34m~/projects/my-app\x1b[0m$ ls -la
@@ -138,15 +138,15 @@ Style showcase:
 
 if (import.meta.main) {
   const inputFile = process.argv[2]
-  let input: string | Buffer
+  let ansi: string | Buffer
 
   if (inputFile) {
     const fs = await import("fs")
-    input = fs.readFileSync(inputFile)
+    ansi = fs.readFileSync(inputFile)
   } else {
-    input = SAMPLE_ANSI
+    ansi = SAMPLE_ANSI
   }
 
   const renderer = await createCliRenderer({ exitOnCtrlC: true })
-  createRoot(renderer).render(<App input={input} />)
+  createRoot(renderer).render(<App ansi={ansi} />)
 }

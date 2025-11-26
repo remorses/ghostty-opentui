@@ -62,7 +62,7 @@ function App() {
 
   return (
     <scrollbox focused style={{ flexGrow: 1 }}>
-      <terminal-buffer input={ANSI} cols={80} rows={24} />
+      <terminal-buffer ansi={ANSI} cols={80} rows={24} />
     </scrollbox>
   )
 }
@@ -116,10 +116,10 @@ import { TerminalBufferRenderable } from "opentui-ansi-vt/terminal-buffer"
 extend({ "terminal-buffer": TerminalBufferRenderable })
 
 // Now you can use it with raw ANSI input
-<terminal-buffer input={ansiString} cols={80} rows={24} />
+<terminal-buffer ansi={ansiString} cols={80} rows={24} />
 
 // cols and rows are optional (defaults: cols=120, rows=40)
-<terminal-buffer input={ansiString} />
+<terminal-buffer ansi={ansiString} />
 ```
 
 ### API
@@ -143,7 +143,7 @@ import { extend } from "@opentui/react" // or "@opentui/solid"
 extend({ "terminal-buffer": TerminalBufferRenderable })
 
 // Use in JSX (component calls ptyToJson internally)
-<terminal-buffer input={ansiString} cols={80} rows={24} />
+<terminal-buffer ansi={ansiString} cols={80} rows={24} />
 ```
 
 ### TypeScript Types
@@ -179,9 +179,9 @@ interface TerminalSpan {
 }
 
 interface TerminalBufferOptions {
-  input: string | Buffer  // Raw ANSI input
-  cols?: number           // Terminal width (default: 120)
-  rows?: number           // Terminal height (default: 40)
+  ansi: string | Buffer  // Raw ANSI input
+  cols?: number          // Terminal width (default: 120)
+  rows?: number          // Terminal height (default: 40)
 }
 
 // StyleFlags: bold=1, italic=2, underline=4, strikethrough=8, inverse=16, faint=32
