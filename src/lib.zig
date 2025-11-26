@@ -3,6 +3,19 @@ const ghostty_vt = @import("ghostty-vt");
 const color = ghostty_vt.color;
 const pagepkg = ghostty_vt.page;
 
+// Disable all logging from ghostty-vt library
+pub const std_options: std.Options = .{
+    .log_level = .err,
+    .logFn = struct {
+        pub fn logFn(
+            comptime _: std.log.Level,
+            comptime _: @Type(.enum_literal),
+            comptime _: []const u8,
+            _: anytype,
+        ) void {}
+    }.logFn,
+};
+
 pub const StyleFlags = packed struct(u8) {
     bold: bool = false,
     italic: bool = false,
