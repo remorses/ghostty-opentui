@@ -37,6 +37,7 @@ fn getStyleFromCell(
     cell: *const pagepkg.Cell,
     pin: ghostty_vt.Pin,
     palette: *const color.Palette,
+    terminal_bg: ?color.RGB,
 ) CellStyle {
     var flags: StyleFlags = .{};
     var fg: ?color.RGB = null;
@@ -62,6 +63,15 @@ fn getStyleFromCell(
         .bg_color_rgb => .{ .r = cell.content.color_rgb.r, .g = cell.content.color_rgb.g, .b = cell.content.color_rgb.b },
         else => null,
     };
+
+    // If the background color matches the terminal's default background, treat it as transparent
+    if (bg) |cell_bg| {
+        if (terminal_bg) |term_bg| {
+            if (cell_bg.r == term_bg.r and cell_bg.g == term_bg.g and cell_bg.b == term_bg.b) {
+                bg = null;
+            }
+        }
+    }
 
     return .{ .fg = fg, .bg = bg, .flags = flags };
 }
@@ -103,6 +113,7 @@ pub fn writeJsonOutput(
 ) !void {
     const screen = t.screens.active;
     const palette = &t.colors.palette.current;
+    const terminal_bg = t.colors.background.get();
 
     var total_lines: usize = 0;
     var count_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
@@ -166,7 +177,7 @@ pub fn writeJsonOutput(
                 continue;
             }
 
-            const style = getStyleFromCell(cell, pin, palette);
+            const style = getStyleFromCell(cell, pin, palette, terminal_bg);
             const style_changed = if (current_style) |cs| !cs.eql(style) else true;
 
             if (style_changed and text_len > 0) {

@@ -10,7 +10,6 @@ import { extend } from "@opentui/react"
 import { type TerminalData, type TerminalSpan, StyleFlags } from "./ffi"
 
 const DEFAULT_FG = RGBA.fromHex("#d4d4d4")
-const DEFAULT_BG = RGBA.fromHex("#1e1e1e")
 
 const TextAttributes = {
   BOLD: 1 << 0,
@@ -31,7 +30,7 @@ function convertSpanToChunk(span: TerminalSpan): TextChunk {
 
   if (flags & StyleFlags.INVERSE) {
     const temp = fgColor
-    fgColor = bgColor || DEFAULT_BG
+    fgColor = bgColor || DEFAULT_FG
     bgColor = temp
   }
 
@@ -78,7 +77,6 @@ export class TerminalBufferRenderable extends TextBufferRenderable {
     super(ctx, {
       ...options,
       fg: DEFAULT_FG,
-      bg: DEFAULT_BG,
       wrapMode: "none",
     })
 

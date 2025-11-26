@@ -3,21 +3,17 @@ import { createRoot, useKeyboard } from "@opentui/react"
 import { ptyToJson, type TerminalData } from "./ffi"
 import "./terminal-buffer" // Register the custom component
 
-const DEFAULT_BG = "#1e1e1e"
-
 export function TerminalView({ data }: { data: TerminalData }) {
   return (
-    <box style={{ flexDirection: "column", flexGrow: 1 }}>
+    <box style={{ flexDirection: "column", backgroundColor: "#000", flexGrow: 1 }}>
       <scrollbox
         focused
         padding={3}
         style={{ flexGrow: 1 }}
-        rootOptions={{ backgroundColor: DEFAULT_BG }}
-        contentOptions={{ backgroundColor: DEFAULT_BG, padding: 1 }}
       >
-        <terminal-buffer  data={data} />
+        <terminal-buffer data={data} />
       </scrollbox>
-      <box style={{ height: 1, backgroundColor: "#21262d", paddingLeft: 1 }}>
+      <box style={{ height: 1, backgroundColor: "#000", paddingLeft: 1 }}>
         <text fg="#8b949e">
           {data.cols}x{data.rows} | Cursor: ({data.cursor[0]}, {data.cursor[1]}) | Lines: {data.totalLines}
         </text>
