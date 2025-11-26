@@ -1,4 +1,4 @@
-# pty-to-html Agent Guide
+# pty-to-json Agent Guide
 
 This repository uses Zig 0.15.2 and Ghostty's `ghostty-vt` library. Follow these conventions when modifying code or adding tests.
 
@@ -7,10 +7,10 @@ This repository uses Zig 0.15.2 and Ghostty's `ghostty-vt` library. Follow these
 - Prefer the pinned Zig toolchain from the parent directory:
   - `../zig-x86_64-linux-0.15.2/zig build`
   - `../zig-x86_64-linux-0.15.2/zig build -Doptimize=ReleaseFast`
-- The main binary is built to `zig-out/bin/pty-to-html`.
+- The main binary is built to `zig-out/bin/pty-to-json`.
 - To use the automated setup script, run `./setup.sh` from the repo root. It will:
   - Install Zig 0.15.2 (by default to `/opt/zig` and `/usr/local/bin/zig`) if `zig` is missing or not the required version.
-  - Clone and patch Ghostty, then invoke `zig build` (which by default targets `zig-out/bin/pty-to-html`).
+  - Clone and patch Ghostty, then invoke `zig build` (which by default targets `zig-out/bin/pty-to-json`).
 - In environments that already provide Zig 0.15.2 (for example via a prebuilt toolchain under `/build/zig` or the unpacked `../zig-x86_64-linux-0.15.2/zig`), you can:
   - Put that Zig binary on `PATH` and run `zig build` / `zig build test` directly, or
   - Skip the installation part of `./setup.sh` entirely and just use the existing toolchain.

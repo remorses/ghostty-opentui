@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# pty-to-html setup script
+# pty-to-json setup script
 # Installs Zig 0.15.2, clones Ghostty, applies patches, and builds the project
 #
 
@@ -136,15 +136,15 @@ clone_ghostty() {
     cd "$SCRIPT_DIR"
 }
 
-# Build pty-to-html
+# Build pty-to-json
 build_project() {
-    log_info "Building pty-to-html in release mode..."
+    log_info "Building pty-to-json in release mode..."
     cd "$SCRIPT_DIR"
     zig build -Doptimize=ReleaseFast
 
-    if [ -f "zig-out/bin/pty-to-html" ]; then
+    if [ -f "zig-out/bin/pty-to-json" ]; then
         log_info "Build successful!"
-        log_info "Binary available at: $SCRIPT_DIR/zig-out/bin/pty-to-html"
+        log_info "Binary available at: $SCRIPT_DIR/zig-out/bin/pty-to-json"
     else
         log_error "Build failed - binary not found"
         exit 1
@@ -154,7 +154,7 @@ build_project() {
 # Main
 main() {
     echo "=========================================="
-    echo "  pty-to-html Setup Script"
+    echo "  pty-to-json Setup Script"
     echo "=========================================="
     echo
 
@@ -175,10 +175,10 @@ main() {
     echo "=========================================="
     echo
     echo "Usage:"
-    echo "  ./zig-out/bin/pty-to-html [OPTIONS] [FILE]"
+    echo "  ./zig-out/bin/pty-to-json [OPTIONS] [FILE]"
     echo
     echo "Example:"
-    echo "  ./zig-out/bin/pty-to-html --full -o output.html session.log"
+    echo "  ./zig-out/bin/pty-to-json -o output.json session.log"
     echo
 }
 
