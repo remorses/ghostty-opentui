@@ -10,11 +10,12 @@ export function TerminalView({ data }: { data: TerminalData }) {
     <box style={{ flexDirection: "column", flexGrow: 1 }}>
       <scrollbox
         focused
+        padding={3}
         style={{ flexGrow: 1 }}
         rootOptions={{ backgroundColor: DEFAULT_BG }}
         contentOptions={{ backgroundColor: DEFAULT_BG, padding: 1 }}
       >
-        <terminal-buffer data={data} />
+        <terminal-buffer  data={data} />
       </scrollbox>
       <box style={{ height: 1, backgroundColor: "#21262d", paddingLeft: 1 }}>
         <text fg="#8b949e">
