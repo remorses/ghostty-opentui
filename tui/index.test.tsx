@@ -145,6 +145,17 @@ describe("terminalDataToStyledText highlights", () => {
 })
 
 describe("ptyToText", () => {
+  it("should handle large output without truncation", () => {
+    // Generate 1000 lines of colored output
+    const lines = Array.from({ length: 1000 }, (_, i) => `\x1b[3${i % 8}mLine ${i + 1}\x1b[0m`).join("\n")
+    const result = ptyToText(lines)
+    const resultLines = result.split("\n")
+    
+    expect(resultLines.length).toBe(1000)
+    expect(resultLines[0]).toBe("Line 1")
+    expect(resultLines[999]).toBe("Line 1000")
+  })
+
   it("should strip ANSI codes and return plain text", () => {
     const input = "\x1b[31mred\x1b[0m \x1b[32mgreen\x1b[0m"
     const result = ptyToText(input)

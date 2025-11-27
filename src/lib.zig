@@ -259,7 +259,12 @@ export fn ptyToJson(
     const input = input_ptr[0..input_len];
     const lim: ?usize = if (limit == 0) null else limit;
 
-    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{ .cols = cols, .rows = rows }) catch return null;
+    // Use unlimited scrollback so we don't lose content
+    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{
+        .cols = cols,
+        .rows = rows,
+        .max_scrollback = std.math.maxInt(usize),
+    }) catch return null;
     defer t.deinit(globalArena);
 
     // Enable linefeed mode so LF (\n) also performs carriage return (moves to column 0)
@@ -287,7 +292,12 @@ export fn ptyToText(
 ) ?[*]u8 {
     const input = input_ptr[0..input_len];
 
-    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{ .cols = cols, .rows = rows }) catch return null;
+    // Use unlimited scrollback so we don't lose content
+    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{
+        .cols = cols,
+        .rows = rows,
+        .max_scrollback = std.math.maxInt(usize),
+    }) catch return null;
     defer t.deinit(globalArena);
 
     // Enable linefeed mode so LF (\n) also performs carriage return (moves to column 0)

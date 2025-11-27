@@ -12,6 +12,9 @@
 
 ### Bug Fixes
 
+- **zig**: Set unlimited scrollback to prevent content truncation
+  - Both `ptyToJson` and `ptyToText` now use `max_scrollback = maxInt(usize)` 
+  - Previously large outputs (>10KB) were truncated from the start
 - **ffi**: Call `freeArena()` on error paths to prevent memory accumulation
   - Both `ptyToJson` and `ptyToText` now properly free the arena when returning null
 
