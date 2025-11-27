@@ -123,7 +123,7 @@ function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJs
   const text = typeof input === "string" ? input : input.toString("utf-8")
   const plainText = stripAnsi(text)
   const allLines = plainText.split("\n")
-  
+
   // Apply offset and limit
   const startLine = offset
   const endLine = limit > 0 ? Math.min(startLine + limit, allLines.length) : allLines.length
@@ -151,7 +151,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
 
   const inputBuffer = typeof input === "string" ? Buffer.from(input) : input
   const inputArray = inputBuffer instanceof Buffer ? new Uint8Array(inputBuffer) : inputBuffer
-  
+
   // Handle empty input (bun:ffi throws on empty array pointer)
   const safeInputArray = inputArray.length === 0 ? new Uint8Array(1) : inputArray
   const inputPtr = ptr(safeInputArray)
@@ -216,7 +216,7 @@ function ptyToTextFallback(input: Buffer | Uint8Array | string, options: PtyToTe
  * Strips ANSI escape codes from input and returns plain text.
  * Uses the terminal emulator to properly process escape sequences,
  * then outputs only the visible text content.
- * 
+ *
  * Useful for cleaning terminal output before sending to LLMs or other text processors.
  */
 export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTextOptions = {}): string {
@@ -225,7 +225,9 @@ export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTex
     return ptyToTextFallback(input, options)
   }
 
-  const { cols = 120, rows = 40 } = options
+  // Large rows = less scrolling = fewer pages = cheaper
+  // cols affects line wrapping (high default to avoid unwanted wraps)
+  const { cols = 500, rows = 256 } = options
 
   const inputBuffer = typeof input === "string" ? Buffer.from(input) : input
   const inputArray = inputBuffer instanceof Buffer ? new Uint8Array(inputBuffer) : inputBuffer
@@ -248,7 +250,7 @@ export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTex
   }
 
   const outLen = Number(outLenBuffer[0])
-  
+
   // Handle empty output
   if (outLen === 0) {
     lib.symbols.freeArena()

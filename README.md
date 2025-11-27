@@ -56,8 +56,8 @@ const plain = ptyToText("\x1b[31mError:\x1b[0m Something went wrong")
 const complex = ptyToText("\x1b[1;38;2;255;100;50mBold RGB\x1b[0m text")
 // Returns: "Bold RGB text"
 
-// Optional cols/rows for terminal emulation accuracy
-const text = ptyToText(ansiBuffer, { cols: 120, rows: 40 })
+// Optional cols for line wrapping (default: 500)
+const text = ptyToText(ansiBuffer, { cols: 120 })
 ```
 
 **Why use `ptyToText` instead of regex?**
@@ -324,8 +324,8 @@ interface TerminalSpan {
 }
 
 interface PtyToTextOptions {
-  cols?: number               // Terminal width (default: 120)
-  rows?: number               // Terminal height (default: 40)
+  cols?: number               // Terminal width for wrapping (default: 500)
+  rows?: number               // Terminal height (default: 10000, higher = fewer pages = faster)
 }
 
 interface TerminalBufferOptions {
