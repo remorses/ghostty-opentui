@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.9
+
+### Tests
+
+- **ffi**: Add inline snapshot test for `ptyToHtml` function
+
 ## 1.2.6
 
 ### Features
