@@ -238,17 +238,19 @@ Style showcase:
 \x1b[1;32muser@hostname\x1b[0m:\x1b[1;34m~/projects/my-app\x1b[0m$ \x1b[5m_\x1b[0m
 `
 
-if (import.meta.main) {
-  const inputFile = process.argv[2]
-  let ansi: string | Buffer
+if (require.main === module) {
+  ;(async () => {
+    const inputFile = process.argv[2]
+    let ansi: string | Buffer
 
-  if (inputFile) {
-    const fs = await import("fs")
-    ansi = fs.readFileSync(inputFile)
-  } else {
-    ansi = SAMPLE_ANSI
-  }
+    if (inputFile) {
+      const fs = await import("fs")
+      ansi = fs.readFileSync(inputFile)
+    } else {
+      ansi = SAMPLE_ANSI
+    }
 
-  const renderer = await createCliRenderer({ exitOnCtrlC: true })
-  createRoot(renderer).render(<App initialAnsi={ansi} />)
+    const renderer = await createCliRenderer({ exitOnCtrlC: true })
+    createRoot(renderer).render(<App initialAnsi={ansi} />)
+  })()
 }

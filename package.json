@@ -19,7 +19,7 @@
     "zig-out/lib/ghostty-opentui.node"
   ],
   "scripts": {
-    "dev": "bun --watch run tui/index.tsx",
+    "dev": "bun --watch run tui/example.tsx",
     "build": "tsc -p tsconfig.build.json",
     "prepublishOnly": "bun run build",
     "test": "bun test"

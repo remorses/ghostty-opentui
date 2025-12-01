@@ -107,7 +107,9 @@ function App() {
   )
 }
 
-if (import.meta.main) {
-  const renderer = await createCliRenderer({ exitOnCtrlC: true })
-  createRoot(renderer).render(<App />)
+if (require.main === module) {
+  ;(async () => {
+    const renderer = await createCliRenderer({ exitOnCtrlC: true })
+    createRoot(renderer).render(<App />)
+  })()
 }

@@ -17,7 +17,7 @@ function App() {
   // Get actual ls --color=always -la output
   const lsOutput = execSync("ls --color=always -la", { 
     encoding: "utf-8",
-    cwd: import.meta.dir + "/.."
+    cwd: __dirname + "/.."
   })
 
   // Count actual lines
@@ -88,7 +88,9 @@ function App() {
   )
 }
 
-if (import.meta.main) {
-  const renderer = await createCliRenderer({ exitOnCtrlC: true })
-  createRoot(renderer).render(<App />)
+if (require.main === module) {
+  ;(async () => {
+    const renderer = await createCliRenderer({ exitOnCtrlC: true })
+    createRoot(renderer).render(<App />)
+  })()
 }
