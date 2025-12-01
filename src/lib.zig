@@ -1,4 +1,6 @@
 const std = @import("std");
+const builtin = @import("builtin");
+const napigen = if (builtin.is_test) undefined else @import("napigen");
 const ghostty_vt = @import("ghostty-vt");
 const color = ghostty_vt.color;
 const pagepkg = ghostty_vt.page;
@@ -244,61 +246,61 @@ pub fn writeJsonOutput(
     try writer.writeAll("]}");
 }
 
-var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-const globalArena = arena.allocator();
+// Thread-local allocator for NAPI functions
+threadlocal var arena: std.heap.ArenaAllocator = std.heap.ArenaAllocator.init(std.heap.page_allocator);
 
-export fn ptyToJson(
-    input_ptr: [*]const u8,
-    input_len: usize,
-    cols: u16,
-    rows: u16,
-    offset: usize,
-    limit: usize,
-    out_len: *usize,
-) ?[*]u8 {
-    const input = input_ptr[0..input_len];
-    const lim: ?usize = if (limit == 0) null else limit;
+fn getArenaAllocator() std.mem.Allocator {
+    return arena.allocator();
+}
+
+fn resetArena() void {
+    _ = arena.reset(.free_all);
+}
+
+/// Convert PTY input to JSON format
+/// Returns JSON string with terminal data (cols, rows, cursor, lines with styled spans)
+fn ptyToJson(input: []const u8, cols: u32, rows: u32, offset: u32, limit: u32) ![]const u8 {
+    const alloc = getArenaAllocator();
+    defer resetArena();
+
+    const lim: ?usize = if (limit == 0) null else @intCast(limit);
 
     // Use unlimited scrollback so we don't lose content
-    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{
-        .cols = cols,
-        .rows = rows,
+    var t: ghostty_vt.Terminal = try ghostty_vt.Terminal.init(alloc, .{
+        .cols = @intCast(cols),
+        .rows = @intCast(rows),
         .max_scrollback = std.math.maxInt(usize),
-    }) catch return null;
-    defer t.deinit(globalArena);
+    });
+    defer t.deinit(alloc);
 
     // Enable linefeed mode so LF (\n) also performs carriage return (moves to column 0)
-    // This matches expected behavior when processing text files that use \n for newlines
     t.modes.set(.linefeed, true);
 
     var stream = t.vtStream();
     defer stream.deinit();
 
-    stream.nextSlice(input) catch return null;
+    try stream.nextSlice(input);
 
     var output: std.ArrayListAligned(u8, null) = .empty;
-    writeJsonOutput(output.writer(globalArena), &t, offset, lim) catch return null;
+    try writeJsonOutput(output.writer(alloc), &t, @intCast(offset), lim);
 
-    out_len.* = output.items.len;
-    return output.items.ptr;
+    // Copy result to a new allocation that will outlive the arena reset
+    const result = try std.heap.page_allocator.dupe(u8, output.items);
+    return result;
 }
 
-export fn ptyToText(
-    input_ptr: [*]const u8,
-    input_len: usize,
-    cols: u16,
-    rows: u16,
-    out_len: *usize,
-) ?[*]u8 {
-    const input = input_ptr[0..input_len];
+/// Convert PTY input to plain text (strips ANSI escape codes)
+fn ptyToText(input: []const u8, cols: u32, rows: u32) ![]const u8 {
+    const alloc = getArenaAllocator();
+    defer resetArena();
 
     // Use unlimited scrollback so we don't lose content
-    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{
-        .cols = cols,
-        .rows = rows,
+    var t: ghostty_vt.Terminal = try ghostty_vt.Terminal.init(alloc, .{
+        .cols = @intCast(cols),
+        .rows = @intCast(rows),
         .max_scrollback = std.math.maxInt(usize),
-    }) catch return null;
-    defer t.deinit(globalArena);
+    });
+    defer t.deinit(alloc);
 
     // Enable linefeed mode so LF (\n) also performs carriage return (moves to column 0)
     t.modes.set(.linefeed, true);
@@ -306,34 +308,32 @@ export fn ptyToText(
     var stream = t.vtStream();
     defer stream.deinit();
 
-    stream.nextSlice(input) catch return null;
+    try stream.nextSlice(input);
 
     // Use the ghostty formatter with plain format to get just the text
-    var builder: std.Io.Writer.Allocating = .init(globalArena);
+    var builder: std.Io.Writer.Allocating = .init(alloc);
     var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .plain);
-    fmt.format(&builder.writer) catch return null;
+    try fmt.format(&builder.writer);
 
     const output = builder.writer.buffered();
-    out_len.* = output.len;
-    return @constCast(output.ptr);
+
+    // Copy result to a new allocation that will outlive the arena reset
+    const result = try std.heap.page_allocator.dupe(u8, output);
+    return result;
 }
 
-export fn ptyToHtml(
-    input_ptr: [*]const u8,
-    input_len: usize,
-    cols: u16,
-    rows: u16,
-    out_len: *usize,
-) ?[*]u8 {
-    const input = input_ptr[0..input_len];
+/// Convert PTY input to styled HTML
+fn ptyToHtml(input: []const u8, cols: u32, rows: u32) ![]const u8 {
+    const alloc = getArenaAllocator();
+    defer resetArena();
 
     // Use unlimited scrollback so we don't lose content
-    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{
-        .cols = cols,
-        .rows = rows,
+    var t: ghostty_vt.Terminal = try ghostty_vt.Terminal.init(alloc, .{
+        .cols = @intCast(cols),
+        .rows = @intCast(rows),
         .max_scrollback = std.math.maxInt(usize),
-    }) catch return null;
-    defer t.deinit(globalArena);
+    });
+    defer t.deinit(alloc);
 
     // Enable linefeed mode so LF (\n) also performs carriage return (moves to column 0)
     t.modes.set(.linefeed, true);
@@ -341,20 +341,32 @@ export fn ptyToHtml(
     var stream = t.vtStream();
     defer stream.deinit();
 
-    stream.nextSlice(input) catch return null;
+    try stream.nextSlice(input);
 
     // Use the ghostty formatter with html format to get styled HTML
-    var builder: std.Io.Writer.Allocating = .init(globalArena);
+    var builder: std.Io.Writer.Allocating = .init(alloc);
     var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .html);
-    fmt.format(&builder.writer) catch return null;
+    try fmt.format(&builder.writer);
 
     const output = builder.writer.buffered();
-    out_len.* = output.len;
-    return @constCast(output.ptr);
+
+    // Copy result to a new allocation that will outlive the arena reset
+    const result = try std.heap.page_allocator.dupe(u8, output);
+    return result;
 }
 
-export fn freeArena() void {
-    _ = arena.reset(.free_all);
+// Define the NAPI module (only when not testing)
+comptime {
+    if (!builtin.is_test) {
+        napigen.defineModule(initModule);
+    }
+}
+
+fn initModule(js: *napigen.JsContext, exports: napigen.napi_value) anyerror!napigen.napi_value {
+    try js.setNamedProperty(exports, "ptyToJson", try js.createFunction(ptyToJson));
+    try js.setNamedProperty(exports, "ptyToText", try js.createFunction(ptyToText));
+    try js.setNamedProperty(exports, "ptyToHtml", try js.createFunction(ptyToHtml));
+    return exports;
 }
 
 const testing = std.testing;

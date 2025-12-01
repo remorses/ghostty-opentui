@@ -187,7 +187,7 @@ export function terminalDataToStyledText(
   return new StyledText(chunks)
 }
 
-export interface TerminalBufferOptions extends TextBufferOptions {
+export interface GhosttyTerminalOptions extends TextBufferOptions {
   ansi: string | Buffer
   cols?: number
   rows?: number
@@ -196,7 +196,10 @@ export interface TerminalBufferOptions extends TextBufferOptions {
   highlights?: HighlightRegion[]  // Regions to highlight with custom background colors
 }
 
-export class TerminalBufferRenderable extends TextBufferRenderable {
+/** @deprecated Use GhosttyTerminalOptions instead */
+export type TerminalBufferOptions = GhosttyTerminalOptions
+
+export class GhosttyTerminalRenderable extends TextBufferRenderable {
   private _ansi: string | Buffer
   private _cols: number
   private _rows: number
@@ -206,7 +209,7 @@ export class TerminalBufferRenderable extends TextBufferRenderable {
   private _ansiDirty: boolean = false
   private _lineCount: number = 0
 
-  constructor(ctx: RenderContext, options: TerminalBufferOptions) {
+  constructor(ctx: RenderContext, options: GhosttyTerminalOptions) {
     super(ctx, {
       ...options,
       fg: DEFAULT_FG,
@@ -364,3 +367,6 @@ export class TerminalBufferRenderable extends TextBufferRenderable {
     return this.y + lineYOffset
   }
 }
+
+/** @deprecated Use GhosttyTerminalRenderable instead */
+export const TerminalBufferRenderable = GhosttyTerminalRenderable

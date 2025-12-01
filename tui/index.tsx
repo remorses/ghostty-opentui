@@ -1,11 +1,11 @@
 import { createCliRenderer, type ScrollBoxRenderable } from "@opentui/core"
 import { createRoot, useKeyboard, extend } from "@opentui/react"
 import { useState, useRef, useMemo } from "react"
-import { TerminalBufferRenderable, type HighlightRegion } from "./terminal-buffer"
+import { GhosttyTerminalRenderable, type HighlightRegion } from "./terminal-buffer"
 import { ptyToJson } from "./ffi"
 
-// Register the terminal-buffer component
-extend({ "terminal-buffer": TerminalBufferRenderable })
+// Register the ghostty-terminal component
+extend({ "ghostty-terminal": GhosttyTerminalRenderable })
 
 /**
  * Finds all occurrences of a word in the terminal output and returns highlight regions.
@@ -53,7 +53,7 @@ export function TerminalView({ ansi }: { ansi: string | Buffer }) {
         padding={3}
         style={{ flexGrow: 1 }}
       >
-        <terminal-buffer ansi={ansi} cols={120} rows={120} />
+        <ghostty-terminal ansi={ansi} cols={120} rows={120} />
       </scrollbox>
     </box>
   )
@@ -63,7 +63,7 @@ function App({ initialAnsi }: { initialAnsi: string | Buffer }) {
   const [ansi, setAnsi] = useState(initialAnsi)
   const [count, setCount] = useState(0)
   const scrollBoxRef = useRef<ScrollBoxRenderable>(null)
-  const terminalBufferRef = useRef<TerminalBufferRenderable>(null)
+  const terminalBufferRef = useRef<GhosttyTerminalRenderable>(null)
 
   // Find and highlight specific words in the terminal output
   const highlights = useMemo(() => {
@@ -125,7 +125,7 @@ function App({ initialAnsi }: { initialAnsi: string | Buffer }) {
         padding={3}
         style={{ flexGrow: 1 }}
       >
-        <terminal-buffer ref={terminalBufferRef} ansi={ansi} cols={120} rows={120} highlights={highlights} />
+        <ghostty-terminal ref={terminalBufferRef} ansi={ansi} cols={120} rows={120} highlights={highlights} />
       </scrollbox>
     </box>
   )

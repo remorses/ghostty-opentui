@@ -1,11 +1,11 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, extend } from "@opentui/react"
-import { TerminalBufferRenderable } from "./terminal-buffer"
+import { GhosttyTerminalRenderable } from "./terminal-buffer"
 import fs from "fs"
 import { execSync } from "child_process"
 
-// Register the terminal-buffer component
-extend({ "terminal-buffer": TerminalBufferRenderable })
+// Register the ghostty-terminal component
+extend({ "ghostty-terminal": GhosttyTerminalRenderable })
 
 function App() {
   useKeyboard((key) => {
@@ -40,7 +40,7 @@ function App() {
           maxHeight: 12,
         }}
       >
-        <terminal-buffer 
+        <ghostty-terminal 
           ansi={lsOutput} 
           cols={120} 
           rows={50}
@@ -58,7 +58,7 @@ function App() {
           padding: 1,
         }}
       >
-        <terminal-buffer 
+        <ghostty-terminal 
           ansi={lsOutput} 
           cols={120} 
           rows={50}
@@ -77,7 +77,7 @@ function App() {
           padding: 1,
         }}
       >
-        <terminal-buffer 
+        <ghostty-terminal 
           ansi={lsOutput} 
           cols={120} 
           rows={lineCount + 2}

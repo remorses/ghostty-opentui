@@ -1,12 +1,23 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it, afterEach } from "bun:test"
 import { createRoot, extend } from "@opentui/react"
 import { createTestRenderer, type TestRendererOptions } from "@opentui/core/testing"
-import { TerminalBufferRenderable } from "./terminal-buffer"
+import { GhosttyTerminalRenderable } from "./terminal-buffer"
 import { act } from "react"
 import type { ReactNode } from "react"
 
 // Register the component
-extend({ "terminal-buffer": TerminalBufferRenderable })
+extend({ "ghostty-terminal": GhosttyTerminalRenderable })
+
+// Track current test setup for cleanup
+let currentTestSetup: Awaited<ReturnType<typeof createTestRenderer>> | null = null
+
+// Cleanup after each test to prevent event listener accumulation
+afterEach(() => {
+  if (currentTestSetup) {
+    currentTestSetup.renderer.destroy()
+    currentTestSetup = null
+  }
+})
 
 // Custom testRender that uses the main entry point's createRoot (and thus shared component catalogue)
 async function testRender(node: ReactNode, options: TestRendererOptions = {}) {
@@ -15,10 +26,9 @@ async function testRender(node: ReactNode, options: TestRendererOptions = {}) {
 
   const testSetup = await createTestRenderer({
     ...options,
-    onDestroy() {
-        // Cleanup logic if needed
-    }
   })
+  
+  currentTestSetup = testSetup
 
   const root = createRoot(testSetup.renderer)
   
@@ -29,7 +39,7 @@ async function testRender(node: ReactNode, options: TestRendererOptions = {}) {
   return testSetup
 }
 
-describe("TerminalBufferRenderable", () => {
+describe("GhosttyTerminalRenderable", () => {
   it("should render basic text component", async () => {
     const { renderOnce, captureCharFrame } = await testRender(
       <text>Test Basic</text>,
@@ -55,7 +65,7 @@ describe("TerminalBufferRenderable", () => {
     const ansi = "\x1b[32mHello\x1b[0m World"
     
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     
@@ -80,7 +90,7 @@ describe("TerminalBufferRenderable", () => {
   it("should render colored text", async () => {
     const ansi = "\x1b[31mRed\x1b[0m \x1b[32mGreen\x1b[0m \x1b[34mBlue\x1b[0m"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     
@@ -106,7 +116,7 @@ describe("TerminalBufferRenderable", () => {
   it("should render multi-line ANSI", async () => {
     const ansi = "Line 1\nLine 2\nLine 3"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     
@@ -136,7 +146,7 @@ Line 3
     const updated = prefix + original
 
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={updated} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={updated} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -165,7 +175,7 @@ Original Text
     ansi = "\x1b[1;35m[PREFIX 2]\x1b[0m\n" + ansi
 
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -190,7 +200,7 @@ Base Text
   it("should respect cols and rows options", async () => {
     const ansi = "Test"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={20} rows={5} style={{ width: 20, height: 5 }} />,
+      <ghostty-terminal ansi={ansi} cols={20} rows={5} style={{ width: 20, height: 5 }} />,
       { width: 20, height: 5 }
     )
     await renderOnce()
@@ -208,7 +218,7 @@ Base Text
   it("should handle bold and italic text", async () => {
     const ansi = "\x1b[1mBold\x1b[0m \x1b[3mItalic\x1b[0m \x1b[1;3mBoth\x1b[0m"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -233,7 +243,7 @@ Base Text
   it("should handle RGB colors", async () => {
     const ansi = "\x1b[38;2;255;105;180mHot Pink\x1b[0m \x1b[38;2;0;255;127mSpring Green\x1b[0m"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -256,7 +266,7 @@ Base Text
 
   it("should handle empty ANSI", async () => {
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi="" cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi="" cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -279,7 +289,7 @@ Base Text
   it("should preserve newlines correctly", async () => {
     const ansi = "Line1\n\nLine3"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -303,7 +313,7 @@ Line3
   it("should handle background colors", async () => {
     const ansi = "\x1b[41m Red BG \x1b[0m \x1b[42m Green BG \x1b[0m"
     const { renderOnce, captureCharFrame } = await testRender(
-      <terminal-buffer ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
+      <ghostty-terminal ansi={ansi} cols={40} rows={10} style={{ width: 40, height: 10 }} />,
       { width: 40, height: 10 }
     )
     await renderOnce()
@@ -330,7 +340,7 @@ Line3
       
       const { renderOnce, captureCharFrame } = await testRender(
         <box border>
-          <terminal-buffer ansi={ansi} cols={20} rows={5} />
+          <ghostty-terminal ansi={ansi} cols={20} rows={5} />
         </box>,
         { width: 24, height: 10 }
       )
@@ -356,7 +366,7 @@ Line3
       
       const { renderOnce, captureCharFrame } = await testRender(
         <box border>
-          <terminal-buffer ansi={ansi} cols={20} rows={5} trimEnd />
+          <ghostty-terminal ansi={ansi} cols={20} rows={5} trimEnd />
         </box>,
         { width: 24, height: 10 }
       )
@@ -392,7 +402,7 @@ Line3
   
       // Without limit: rows creates that many lines
       const { renderOnce: renderWithoutLimit, captureCharFrame: captureWithoutLimit } = await testRender(
-        <terminal-buffer ansi={lsOutput} cols={80} rows={50} style={{ width: 80, height: 50 }} />,
+        <ghostty-terminal ansi={lsOutput} cols={80} rows={50} style={{ width: 80, height: 50 }} />,
         { width: 80, height: 50 }
       )
       await renderWithoutLimit()
@@ -402,7 +412,7 @@ Line3
   
       // With limit: only first N lines
       const { renderOnce: renderWithLimit, captureCharFrame: captureWithLimit } = await testRender(
-        <terminal-buffer ansi={lsOutput} cols={80} rows={50} limit={actualLines} style={{ width: 80, height: actualLines }} />,
+        <ghostty-terminal ansi={lsOutput} cols={80} rows={50} limit={actualLines} style={{ width: 80, height: actualLines }} />,
         { width: 80, height: actualLines }
       )
       await renderWithLimit()
@@ -428,7 +438,7 @@ drwx------  71 user  staff  2272 Nov 26 19:44 ..
       
       // Using rows close to actual content
       const { renderOnce, captureCharFrame } = await testRender(
-        <terminal-buffer ansi={lsOutput} cols={80} rows={actualLines + 2} style={{ width: 80, height: actualLines + 2 }} />,
+        <ghostty-terminal ansi={lsOutput} cols={80} rows={actualLines + 2} style={{ width: 80, height: actualLines + 2 }} />,
         { width: 80, height: actualLines + 2 }
       )
       await renderOnce()
@@ -446,7 +456,7 @@ drwx------  71 user  staff  2272 Nov 26 19:44 ..
       const lsOutput = "drwxr-xr-x  3 user  staff  96 Nov 26 16:19 \x1b[34m.git\x1b[0m"
       
       const { renderOnce, captureCharFrame } = await testRender(
-        <terminal-buffer ansi={lsOutput} cols={80} rows={5} style={{ width: 80, height: 5 }} />,
+        <ghostty-terminal ansi={lsOutput} cols={80} rows={5} style={{ width: 80, height: 5 }} />,
         { width: 80, height: 5 }
       )
       await renderOnce()

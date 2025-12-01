@@ -1,94 +1,42 @@
-import { dlopen, FFIType, ptr, suffix, toArrayBuffer } from "bun:ffi"
+import { createRequire } from "module"
 import path from "path"
 import fs from "fs"
-import os from "os"
 import stripAnsi from "strip-ansi"
+
+const require = createRequire(import.meta.url)
 
 const IS_WINDOWS = process.platform === "win32"
 
-// Embed native libraries for bun compile (type: "file" embeds them in the binary)
-// @ts-ignore - import attribute for embedding binary files
-import embeddedDarwinArm64 from "../dist/darwin-arm64/libpty-to-json.dylib" with { type: "file" }
-// @ts-ignore - import attribute for embedding binary files
-import embeddedDarwinX64 from "../dist/darwin-x64/libpty-to-json.dylib" with { type: "file" }
-// @ts-ignore - import attribute for embedding binary files
-import embeddedLinuxX64 from "../dist/linux-x64/libpty-to-json.so" with { type: "file" }
-// @ts-ignore - import attribute for embedding binary files
-import embeddedLinuxArm64 from "../dist/linux-arm64/libpty-to-json.so" with { type: "file" }
-
-function getPlatformTarget(): string {
-  const platform = process.platform
-  const arch = os.arch()
-
-  if (platform === "darwin") {
-    return arch === "arm64" ? "darwin-arm64" : "darwin-x64"
-  } else if (platform === "linux") {
-    return arch === "arm64" ? "linux-arm64" : "linux-x64"
-  }
-  throw new Error(`Unsupported platform: ${platform}-${arch}`)
+interface NativeModule {
+  ptyToJson(input: string, cols: number, rows: number, offset: number, limit: number): string
+  ptyToText(input: string, cols: number, rows: number): string
+  ptyToHtml(input: string, cols: number, rows: number): string
 }
 
-function getEmbeddedLib(): string | undefined {
-  const target = getPlatformTarget()
-  const libs: Record<string, string> = {
-    "darwin-arm64": embeddedDarwinArm64,
-    "darwin-x64": embeddedDarwinX64,
-    "linux-x64": embeddedLinuxX64,
-    "linux-arm64": embeddedLinuxArm64,
-  }
-  return libs[target]
-}
-
-function getLibPath(): string {
-  const libName = `libpty-to-json.${suffix}`
-  const target = getPlatformTarget()
+function getNodePath(): string {
+  const nodeName = "ghostty-opentui.node"
 
   // Check local development path (zig-out) first for development
-  const devPath = path.join(import.meta.dir, "..", "zig-out", "lib", libName)
+  const devPath = path.join(import.meta.dir, "..", "zig-out", "lib", nodeName)
   if (fs.existsSync(devPath)) {
     return devPath
   }
 
-  // Check embedded libraries (for bun compile)
-  const embedded = getEmbeddedLib()
-  if (embedded && fs.existsSync(embedded)) {
-    return embedded
-  }
-
   // Check npm package dist paths
-  const distPath = path.join(import.meta.dir, "..", "dist", target, libName)
+  const distPath = path.join(import.meta.dir, "..", "dist", nodeName)
   if (fs.existsSync(distPath)) {
     return distPath
   }
 
   throw new Error(
-    `Could not find native library ${libName}. ` +
+    `Could not find native library ${nodeName}. ` +
       `Looked in:\n  - ${devPath}\n  - ${distPath}\n` +
       `Make sure to run 'zig build' or install the package with binaries.`
   )
 }
 
 // Only load native library on non-Windows platforms
-const lib = IS_WINDOWS
-  ? null
-  : dlopen(getLibPath(), {
-      ptyToJson: {
-        args: [FFIType.ptr, FFIType.u64, FFIType.u16, FFIType.u16, FFIType.u64, FFIType.u64, FFIType.ptr],
-        returns: FFIType.ptr,
-      },
-      ptyToText: {
-        args: [FFIType.ptr, FFIType.u64, FFIType.u16, FFIType.u16, FFIType.ptr],
-        returns: FFIType.ptr,
-      },
-      ptyToHtml: {
-        args: [FFIType.ptr, FFIType.u64, FFIType.u16, FFIType.u16, FFIType.ptr],
-        returns: FFIType.ptr,
-      },
-      freeArena: {
-        args: [],
-        returns: FFIType.void,
-      },
-    })
+const native: NativeModule | null = IS_WINDOWS ? null : require(getNodePath())
 
 export interface TerminalSpan {
   text: string
@@ -147,34 +95,27 @@ function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJs
 
 export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJsonOptions = {}): TerminalData {
   // Windows fallback: strip ANSI and return plain text
-  if (IS_WINDOWS || !lib) {
+  if (IS_WINDOWS || !native) {
     return ptyToJsonFallback(input, options)
   }
 
   const { cols = 120, rows = 40, offset = 0, limit = 0 } = options
 
-  const inputBuffer = typeof input === "string" ? Buffer.from(input) : input
-  const inputArray = inputBuffer instanceof Buffer ? new Uint8Array(inputBuffer) : inputBuffer
+  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
 
-  // Handle empty input (bun:ffi throws on empty array pointer)
-  const safeInputArray = inputArray.length === 0 ? new Uint8Array(1) : inputArray
-  const inputPtr = ptr(safeInputArray)
-
-  const outLenBuffer = new BigUint64Array(1)
-  const outLenPtr = ptr(outLenBuffer)
-
-  const resultPtr = lib.symbols.ptyToJson(inputPtr, inputArray.length, cols, rows, offset, limit, outLenPtr)
-
-  if (!resultPtr) {
-    lib.symbols.freeArena()
-    throw new Error("ptyToJson returned null")
+  // Handle empty input
+  if (inputStr.length === 0) {
+    return {
+      cols,
+      rows,
+      cursor: [0, 0],
+      offset,
+      totalLines: 0,
+      lines: [],
+    }
   }
 
-  const outLen = Number(outLenBuffer[0])
-  const jsonBuffer = toArrayBuffer(resultPtr, 0, outLen)
-  const jsonStr = new TextDecoder().decode(jsonBuffer)
-
-  lib.symbols.freeArena()
+  const jsonStr = native.ptyToJson(inputStr, cols, rows, offset, limit)
 
   const raw = JSON.parse(jsonStr) as {
     cols: number
@@ -225,7 +166,7 @@ function ptyToTextFallback(input: Buffer | Uint8Array | string, options: PtyToTe
  */
 export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTextOptions = {}): string {
   // Windows fallback: strip ANSI and return plain text
-  if (IS_WINDOWS || !lib) {
+  if (IS_WINDOWS || !native) {
     return ptyToTextFallback(input, options)
   }
 
@@ -233,40 +174,14 @@ export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTex
   // cols affects line wrapping (high default to avoid unwanted wraps)
   const { cols = 500, rows = 256 } = options
 
-  const inputBuffer = typeof input === "string" ? Buffer.from(input) : input
-  const inputArray = inputBuffer instanceof Buffer ? new Uint8Array(inputBuffer) : inputBuffer
+  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
 
   // Handle empty input
-  if (inputArray.length === 0) {
+  if (inputStr.length === 0) {
     return ""
   }
 
-  const inputPtr = ptr(inputArray)
-
-  const outLenBuffer = new BigUint64Array(1)
-  const outLenPtr = ptr(outLenBuffer)
-
-  const resultPtr = lib.symbols.ptyToText(inputPtr, inputArray.length, cols, rows, outLenPtr)
-
-  if (!resultPtr) {
-    lib.symbols.freeArena()
-    throw new Error("ptyToText returned null")
-  }
-
-  const outLen = Number(outLenBuffer[0])
-
-  // Handle empty output
-  if (outLen === 0) {
-    lib.symbols.freeArena()
-    return ""
-  }
-
-  const textBuffer = toArrayBuffer(resultPtr, 0, outLen)
-  const text = new TextDecoder().decode(textBuffer)
-
-  lib.symbols.freeArena()
-
-  return text
+  return native.ptyToText(inputStr, cols, rows)
 }
 
 export interface PtyToHtmlOptions {
@@ -298,7 +213,7 @@ function ptyToHtmlFallback(input: Buffer | Uint8Array | string, options: PtyToHt
  */
 export function ptyToHtml(input: Buffer | Uint8Array | string, options: PtyToHtmlOptions = {}): string {
   // Windows fallback
-  if (IS_WINDOWS || !lib) {
+  if (IS_WINDOWS || !native) {
     return ptyToHtmlFallback(input, options)
   }
 
@@ -306,40 +221,14 @@ export function ptyToHtml(input: Buffer | Uint8Array | string, options: PtyToHtm
   // cols affects line wrapping (high default to avoid unwanted wraps)
   const { cols = 500, rows = 256 } = options
 
-  const inputBuffer = typeof input === "string" ? Buffer.from(input) : input
-  const inputArray = inputBuffer instanceof Buffer ? new Uint8Array(inputBuffer) : inputBuffer
+  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
 
   // Handle empty input
-  if (inputArray.length === 0) {
+  if (inputStr.length === 0) {
     return ""
   }
 
-  const inputPtr = ptr(inputArray)
-
-  const outLenBuffer = new BigUint64Array(1)
-  const outLenPtr = ptr(outLenBuffer)
-
-  const resultPtr = lib.symbols.ptyToHtml(inputPtr, inputArray.length, cols, rows, outLenPtr)
-
-  if (!resultPtr) {
-    lib.symbols.freeArena()
-    throw new Error("ptyToHtml returned null")
-  }
-
-  const outLen = Number(outLenBuffer[0])
-
-  // Handle empty output
-  if (outLen === 0) {
-    lib.symbols.freeArena()
-    return ""
-  }
-
-  const htmlBuffer = toArrayBuffer(resultPtr, 0, outLen)
-  const html = new TextDecoder().decode(htmlBuffer)
-
-  lib.symbols.freeArena()
-
-  return html
+  return native.ptyToHtml(inputStr, cols, rows)
 }
 
 export const StyleFlags = {

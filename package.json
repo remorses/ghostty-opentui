@@ -1,7 +1,7 @@
 {
-  "name": "opentui-ansi-vt",
-  "version": "1.2.12",
-  "description": "Convert raw PTY log files to JSON using Ghostty's terminal emulation library",
+  "name": "ghostty-opentui",
+  "version": "1.3.0",
+  "description": "Fast ANSI/VT terminal parser powered by Ghostty's Zig terminal emulation library",
   "type": "module",
   "main": "./dist/ffi.js",
   "types": "./dist/ffi.d.ts",
@@ -17,7 +17,7 @@
   },
   "files": [
     "dist/**/*",
-    "zig-out/bin/pty-to-json"
+    "zig-out/lib/ghostty-opentui.node"
   ],
   "scripts": {
     "dev": "bun --watch run tui/index.tsx",
@@ -25,12 +25,12 @@
     "prepublishOnly": "bun run build",
     "test": "bun test"
   },
-  "keywords": ["terminal", "pty", "vt100", "ansi", "ghostty", "opentui"],
+  "keywords": ["terminal", "pty", "vt100", "ansi", "ghostty", "opentui", "napi"],
   "author": "remorses",
   "license": "ISC",
   "repository": {
     "type": "git",
-    "url": "https://github.com/remorses/opentui-ansi-vt"
+    "url": "https://github.com/remorses/ghostty-opentui"
   },
   "peerDependencies": {
     "@opentui/core": "*"

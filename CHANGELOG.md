@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.3.0
+
+### Breaking Changes
+
+- **Renamed package** from `opentui-ansi-vt` to `ghostty-opentui`
+- **Renamed component** from `terminal-buffer` / `TerminalBufferRenderable` to `ghostty-terminal` / `GhosttyTerminalRenderable`
+  - Old names are still available as deprecated aliases for backward compatibility
+- **Switched from FFI to N-API** using [napigen](https://github.com/cztomsik/napigen)
+  - Native `.node` addon instead of dynamic library with `bun:ffi`
+  - Simpler integration with Node.js/Bun
+  - No more `bun:ffi` dependency
+
+### Migration Guide
+
+```tsx
+// Before
+import { TerminalBufferRenderable } from "opentui-ansi-vt/terminal-buffer"
+extend({ "terminal-buffer": TerminalBufferRenderable })
+<terminal-buffer ansi={ansi} />
+
+// After
+import { GhosttyTerminalRenderable } from "ghostty-opentui/terminal-buffer"
+extend({ "ghostty-terminal": GhosttyTerminalRenderable })
+<ghostty-terminal ansi={ansi} />
+```
+
 ## 1.2.12
 
 ### Features

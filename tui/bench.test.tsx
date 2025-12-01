@@ -1,12 +1,14 @@
-import { describe, expect, it, afterEach } from "bun:test"
-import { testRender } from "@opentui/react/test-utils"
+import { describe, expect, it } from "bun:test"
 import { ptyToJson } from "./ffi"
 import { terminalDataToStyledText } from "./terminal-buffer"
 import fs from "fs"
 
-describe("Performance benchmark", () => {
+const BENCH_FILE = "/tmp/big.log"
+const hasBenchFile = fs.existsSync(BENCH_FILE)
+
+describe.skipIf(!hasBenchFile)("Performance benchmark", () => {
   it("Benchmark ptyToJson + terminalDataToStyledText", async () => {
-    const input = fs.readFileSync("/tmp/big.log")
+    const input = fs.readFileSync(BENCH_FILE)
 
     const zigStart = performance.now()
     const data = ptyToJson(input, { cols: 120, rows: 10000 })
