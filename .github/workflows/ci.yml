@@ -18,13 +18,10 @@ jobs:
         include:
           - os: ubuntu-latest
             target: linux-x64
-            lib: libpty-to-json.so
           - os: macos-latest
             target: darwin-arm64
-            lib: libpty-to-json.dylib
-          - os: macos-15-large
+          - os: macos-13
             target: darwin-x64
-            lib: libpty-to-json.dylib
       fail-fast: true
 
     runs-on: ${{ matrix.os }}
@@ -48,14 +45,25 @@ jobs:
           retry_on: error
           command: zig build -Doptimize=ReleaseFast
 
-      - name: Run tests
-        run: zig build test
+      # - name: Run Zig tests
+      #   run: zig build test
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run Bun tests
+        run: bun test
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: lib-${{ matrix.target }}
-          path: zig-out/lib/${{ matrix.lib }}
+          path: zig-out/lib/ghostty-opentui.node
 
   # Cross-compile for Linux ARM64
   build-linux-arm64:
@@ -84,7 +92,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: lib-linux-arm64
-          path: zig-out/lib/libpty-to-json.so
+          path: zig-out/lib/ghostty-opentui.node
 
   publish:
     needs: [build, build-linux-arm64]
@@ -129,11 +137,14 @@ jobs:
           name: lib-darwin-x64
           path: dist/darwin-x64
 
-      - name: List artifacts
-        run: ls -laR dist/
-
       - name: Install dependencies
         run: bun install
+
+      - name: Build TypeScript
+        run: bun run build
+
+      - name: List dist contents
+        run: ls -laR dist/
 
       - name: Publish to npm
         run: npm publish --access public

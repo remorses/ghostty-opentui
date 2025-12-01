@@ -1,11 +1,5 @@
-import { createRequire } from "module"
-import path from "path"
-import fs from "fs"
+import { platform, arch } from "os"
 import stripAnsi from "strip-ansi"
-
-const require = createRequire(import.meta.url)
-
-const IS_WINDOWS = process.platform === "win32"
 
 interface NativeModule {
   ptyToJson(input: string, cols: number, rows: number, offset: number, limit: number): string
@@ -13,30 +7,37 @@ interface NativeModule {
   ptyToHtml(input: string, cols: number, rows: number): string
 }
 
-function getNodePath(): string {
-  const nodeName = "ghostty-opentui.node"
+function loadNativeModule(): NativeModule | null {
+  // Try development path first
+  try {
+    return require("../zig-out/lib/ghostty-opentui.node")
+  } catch {}
 
-  // Check local development path (zig-out) first for development
-  const devPath = path.join(import.meta.dir, "..", "zig-out", "lib", nodeName)
-  if (fs.existsSync(devPath)) {
-    return devPath
+  // Load platform-specific dist path (hardcoded for static analysis)
+  const p = platform()
+  const a = arch()
+
+  if (p === "darwin" && a === "arm64") {
+    return require("../dist/darwin-arm64/ghostty-opentui.node")
+  }
+  if (p === "darwin") {
+    return require("../dist/darwin-x64/ghostty-opentui.node")
+  }
+  if (p === "linux" && a === "arm64") {
+    return require("../dist/linux-arm64/ghostty-opentui.node")
+  }
+  if (p === "linux") {
+    return require("../dist/linux-x64/ghostty-opentui.node")
+  }
+  if (p === "win32") {
+    // Windows fallback - no native module
+    return null
   }
 
-  // Check npm package dist paths
-  const distPath = path.join(import.meta.dir, "..", "dist", nodeName)
-  if (fs.existsSync(distPath)) {
-    return distPath
-  }
-
-  throw new Error(
-    `Could not find native library ${nodeName}. ` +
-      `Looked in:\n  - ${devPath}\n  - ${distPath}\n` +
-      `Make sure to run 'zig build' or install the package with binaries.`
-  )
+  throw new Error(`Unsupported platform: ${p}-${a}`)
 }
 
-// Only load native library on non-Windows platforms
-const native: NativeModule | null = IS_WINDOWS ? null : require(getNodePath())
+const native: NativeModule | null = loadNativeModule()
 
 export interface TerminalSpan {
   text: string
@@ -94,8 +95,8 @@ function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJs
 }
 
 export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJsonOptions = {}): TerminalData {
-  // Windows fallback: strip ANSI and return plain text
-  if (IS_WINDOWS || !native) {
+  // Fallback for Windows or if native module not available
+  if (!native) {
     return ptyToJsonFallback(input, options)
   }
 
@@ -165,8 +166,8 @@ function ptyToTextFallback(input: Buffer | Uint8Array | string, options: PtyToTe
  * Useful for cleaning terminal output before sending to LLMs or other text processors.
  */
 export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTextOptions = {}): string {
-  // Windows fallback: strip ANSI and return plain text
-  if (IS_WINDOWS || !native) {
+  // Fallback for Windows or if native module not available
+  if (!native) {
     return ptyToTextFallback(input, options)
   }
 
@@ -212,8 +213,8 @@ function ptyToHtmlFallback(input: Buffer | Uint8Array | string, options: PtyToHt
  * Useful for rendering terminal output in web pages or HTML documents.
  */
 export function ptyToHtml(input: Buffer | Uint8Array | string, options: PtyToHtmlOptions = {}): string {
-  // Windows fallback
-  if (IS_WINDOWS || !native) {
+  // Fallback for Windows or if native module not available
+  if (!native) {
     return ptyToHtmlFallback(input, options)
   }
 
