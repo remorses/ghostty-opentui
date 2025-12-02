@@ -471,4 +471,177 @@ drwx------  71 user  staff  2272 Nov 26 19:44 ..
       expect(output).toContain(".git")
     })
   })
+
+  describe("persistent mode", () => {
+    it("should render with persistent mode enabled", async () => {
+      const ansi = "\x1b[32mHello\x1b[0m World"
+      
+      const { renderOnce, captureCharFrame } = await testRender(
+        <ghostty-terminal ansi={ansi} cols={40} rows={10} persistent style={{ width: 40, height: 10 }} />,
+        { width: 40, height: 10 }
+      )
+      
+      await renderOnce()
+
+      const output = captureCharFrame()
+      expect(output).toContain("Hello")
+      expect(output).toContain("World")
+    })
+
+    it("should allow feeding data in persistent mode", async () => {
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      
+      const { renderOnce, captureCharFrame } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          cols={40} 
+          rows={10} 
+          persistent 
+          style={{ width: 40, height: 10 }} 
+        />,
+        { width: 40, height: 10 }
+      )
+      
+      await renderOnce()
+      
+      // Feed data
+      ref.current?.feed("Hello ")
+      ref.current?.feed("World")
+      
+      await renderOnce()
+      
+      const output = captureCharFrame()
+      expect(output).toContain("Hello World")
+    })
+
+    it("should support streaming data in persistent mode", async () => {
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      
+      const { renderOnce, captureCharFrame } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          cols={80} 
+          rows={10} 
+          persistent 
+          style={{ width: 80, height: 10 }} 
+        />,
+        { width: 80, height: 10 }
+      )
+      
+      await renderOnce()
+      
+      // Stream data like a PTY would
+      ref.current?.feed("\x1b[32mStarting...\x1b[0m\n")
+      ref.current?.feed("Processing file 1\n")
+      ref.current?.feed("Processing file 2\n")
+      ref.current?.feed("\x1b[32mDone!\x1b[0m")
+      
+      await renderOnce()
+      
+      const output = captureCharFrame()
+      expect(output).toContain("Starting...")
+      expect(output).toContain("Processing file 1")
+      expect(output).toContain("Processing file 2")
+      expect(output).toContain("Done!")
+    })
+
+    it("should reset terminal in persistent mode", async () => {
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      
+      const { renderOnce, captureCharFrame } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          cols={40} 
+          rows={10} 
+          persistent 
+          style={{ width: 40, height: 10 }} 
+        />,
+        { width: 40, height: 10 }
+      )
+      
+      await renderOnce()
+      
+      // Feed initial data
+      ref.current?.feed("Old Content")
+      await renderOnce()
+      expect(captureCharFrame()).toContain("Old Content")
+      
+      // Reset and feed new data
+      ref.current?.reset()
+      ref.current?.feed("New Content")
+      await renderOnce()
+      
+      const output = captureCharFrame()
+      expect(output).toContain("New Content")
+      // Old content should be gone after reset
+    })
+
+    it("should track cursor position in persistent mode", async () => {
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      
+      const { renderOnce } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          cols={80} 
+          rows={24} 
+          persistent 
+          style={{ width: 80, height: 24 }} 
+        />,
+        { width: 80, height: 24 }
+      )
+      
+      await renderOnce()
+      
+      ref.current?.feed("Hello")
+      const cursor = ref.current?.getCursor()
+      expect(cursor).toEqual([5, 0])
+      
+      ref.current?.feed("\nLine 2")
+      const cursor2 = ref.current?.getCursor()
+      expect(cursor2?.[0]).toBe(6)
+      expect(cursor2?.[1]).toBe(1)
+    })
+
+    it("should get text content in persistent mode", async () => {
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      
+      const { renderOnce } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          cols={80} 
+          rows={24} 
+          persistent 
+          style={{ width: 80, height: 24 }} 
+        />,
+        { width: 80, height: 24 }
+      )
+      
+      await renderOnce()
+      
+      ref.current?.feed("\x1b[32mColored\x1b[0m Text")
+      const text = ref.current?.getText()
+      expect(text).toContain("Colored Text")
+    })
+
+    it("should throw when using persistent methods in stateless mode", async () => {
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      
+      const { renderOnce } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          ansi="Hello"
+          cols={40} 
+          rows={10} 
+          style={{ width: 40, height: 10 }} 
+        />,
+        { width: 40, height: 10 }
+      )
+      
+      await renderOnce()
+      
+      expect(() => ref.current?.feed("Data")).toThrow("persistent mode")
+      expect(() => ref.current?.reset()).toThrow("persistent mode")
+      expect(() => ref.current?.getCursor()).toThrow("persistent mode")
+    })
+  })
 })

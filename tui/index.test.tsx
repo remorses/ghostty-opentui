@@ -1,6 +1,6 @@
-import { describe, expect, it } from "bun:test"
+import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { rgbToHex } from "@opentui/core"
-import { ptyToJson, ptyToText, StyleFlags, type TerminalData, type TerminalSpan } from "./ffi"
+import { ptyToJson, ptyToText, StyleFlags, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan } from "./ffi"
 import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer"
 
 describe("ptyToJson", () => {
@@ -198,6 +198,249 @@ Line 2"
     const input = "\x1b[1;31;4mBold Red Underline\x1b[0m normal \x1b[32;3mGreen Italic\x1b[0m"
     const result = ptyToText(input)
     expect(result).toMatchInlineSnapshot(`"Bold Red Underline normal Green Italic"`)
+  })
+})
+
+describe("PersistentTerminal", () => {
+  let terminal: PersistentTerminal | null = null
+
+  afterEach(() => {
+    if (terminal && !terminal.destroyed) {
+      terminal.destroy()
+    }
+    terminal = null
+  })
+
+  it("should have persistent terminal support", () => {
+    expect(hasPersistentTerminalSupport()).toBe(true)
+  })
+
+  it("should create a terminal with default dimensions", () => {
+    terminal = new PersistentTerminal()
+    expect(terminal.cols).toBe(120)
+    expect(terminal.rows).toBe(40)
+    expect(terminal.destroyed).toBe(false)
+  })
+
+  it("should create a terminal with custom dimensions", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    expect(terminal.cols).toBe(80)
+    expect(terminal.rows).toBe(24)
+  })
+
+  it("should feed data and get text output", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Hello World")
+    
+    const text = terminal.getText()
+    expect(text).toContain("Hello World")
+  })
+
+  it("should feed data and get JSON output", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Hello World")
+    
+    const data = terminal.getJson()
+    expect(data.cols).toBe(80)
+    expect(data.rows).toBe(24)
+    expect(data.lines.length).toBeGreaterThan(0)
+    expect(data.lines[0].spans[0].text).toBe("Hello World")
+  })
+
+  it("should maintain state across multiple feeds", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    
+    terminal.feed("Hello ")
+    terminal.feed("World")
+    terminal.feed("\n")
+    terminal.feed("Line 2")
+    
+    const text = terminal.getText()
+    expect(text).toContain("Hello World")
+    expect(text).toContain("Line 2")
+  })
+
+  it("should track cursor position", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Hello")
+    
+    const cursor = terminal.getCursor()
+    expect(cursor).toEqual([5, 0]) // x=5, y=0
+  })
+
+  it("should track cursor across newlines", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Line 1\nLine 2\nLine 3")
+    
+    const cursor = terminal.getCursor()
+    expect(cursor[0]).toBe(6) // x = length of "Line 3"
+    expect(cursor[1]).toBe(2) // y = 2 (0-indexed)
+  })
+
+  it("should handle ANSI colors in streamed data", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    
+    terminal.feed("\x1b[32m") // Set green
+    terminal.feed("Green Text")
+    terminal.feed("\x1b[0m") // Reset
+    
+    const data = terminal.getJson()
+    const greenSpan = data.lines[0].spans.find(s => s.text === "Green Text")
+    expect(greenSpan).toBeDefined()
+    expect(greenSpan!.fg).toBeTruthy() // Has a color
+  })
+
+  it("should reset terminal state", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Hello World\nLine 2")
+    
+    terminal.reset()
+    
+    const cursor = terminal.getCursor()
+    expect(cursor).toEqual([0, 0])
+    
+    // After reset, feeding new data should start fresh
+    terminal.feed("Fresh Start")
+    const text = terminal.getText()
+    expect(text).toContain("Fresh Start")
+  })
+
+  it("should resize terminal", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Hello World")
+    
+    terminal.resize(40, 10)
+    
+    expect(terminal.cols).toBe(40)
+    expect(terminal.rows).toBe(10)
+    
+    const data = terminal.getJson()
+    expect(data.cols).toBe(40)
+    expect(data.rows).toBe(10)
+  })
+
+  it("should destroy terminal and prevent further operations", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    terminal.feed("Hello")
+    
+    terminal.destroy()
+    expect(terminal.destroyed).toBe(true)
+    
+    // Should throw on further operations
+    expect(() => terminal!.feed("World")).toThrow("Terminal has been destroyed")
+    expect(() => terminal!.getText()).toThrow("Terminal has been destroyed")
+    expect(() => terminal!.getJson()).toThrow("Terminal has been destroyed")
+    expect(() => terminal!.getCursor()).toThrow("Terminal has been destroyed")
+    expect(() => terminal!.resize(40, 10)).toThrow("Terminal has been destroyed")
+    expect(() => terminal!.reset()).toThrow("Terminal has been destroyed")
+  })
+
+  it("should handle limit parameter in getJson", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 100 })
+    
+    // Feed 50 lines
+    for (let i = 0; i < 50; i++) {
+      terminal.feed(`Line ${i + 1}\n`)
+    }
+    
+    // Get only first 10 lines
+    const data = terminal.getJson({ limit: 10 })
+    expect(data.lines.length).toBe(10)
+    expect(data.lines[0].spans[0].text).toContain("Line 1")
+    expect(data.lines[9].spans[0].text).toContain("Line 10")
+  })
+
+  it("should handle offset parameter in getJson", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 100 })
+    
+    // Feed 20 lines
+    for (let i = 0; i < 20; i++) {
+      terminal.feed(`Line ${i + 1}\n`)
+    }
+    
+    // Get lines starting from offset 10, limit 5
+    const data = terminal.getJson({ offset: 10, limit: 5 })
+    expect(data.lines.length).toBe(5)
+    expect(data.offset).toBe(10)
+    expect(data.lines[0].spans[0].text).toContain("Line 11")
+  })
+
+  it("should handle Buffer input", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    
+    const buffer = Buffer.from("Buffer Input")
+    terminal.feed(buffer)
+    
+    const text = terminal.getText()
+    expect(text).toContain("Buffer Input")
+  })
+
+  it("should handle Uint8Array input", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    
+    const encoder = new TextEncoder()
+    const uint8 = encoder.encode("Uint8Array Input")
+    terminal.feed(uint8)
+    
+    const text = terminal.getText()
+    expect(text).toContain("Uint8Array Input")
+  })
+
+  it("should handle cursor movement escape sequences", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+    
+    // Move cursor to position 5,5 (1-indexed in ANSI)
+    terminal.feed("\x1b[6;6H")
+    terminal.feed("X")
+    
+    const cursor = terminal.getCursor()
+    expect(cursor).toEqual([6, 5]) // x=6 (after writing X), y=5
+  })
+
+  it("should handle multiple terminals independently", () => {
+    const term1 = new PersistentTerminal({ cols: 80, rows: 24 })
+    const term2 = new PersistentTerminal({ cols: 80, rows: 24 })
+    
+    try {
+      term1.feed("Terminal 1")
+      term2.feed("Terminal 2")
+      
+      expect(term1.getText()).toContain("Terminal 1")
+      expect(term1.getText()).not.toContain("Terminal 2")
+      
+      expect(term2.getText()).toContain("Terminal 2")
+      expect(term2.getText()).not.toContain("Terminal 1")
+    } finally {
+      term1.destroy()
+      term2.destroy()
+    }
+  })
+
+  it("should be more efficient than stateless ptyToJson for streaming", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 100 })
+    
+    // Simulate streaming data in chunks
+    const chunks = [
+      "\x1b[32mStarting build...\x1b[0m\n",
+      "Compiling src/index.ts\n",
+      "Compiling src/utils.ts\n",
+      "\x1b[33mWarning: unused variable\x1b[0m\n",
+      "\x1b[32mBuild complete!\x1b[0m\n",
+    ]
+    
+    // Feed chunks one by one (like streaming PTY output)
+    for (const chunk of chunks) {
+      terminal.feed(chunk)
+    }
+    
+    // Use limit to get just the content lines
+    const data = terminal.getJson({ limit: 5 })
+    expect(data.lines.length).toBe(5)
+    
+    // Verify all content is there
+    const text = terminal.getText()
+    expect(text).toContain("Starting build")
+    expect(text).toContain("Build complete")
   })
 })
 

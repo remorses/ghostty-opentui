@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.3.1
+
+### Bug Fixes
+
+- **zig**: Fix memory leak in all NAPI string-returning functions
+  - `ptyToJson`, `ptyToText`, `ptyToHtml`, `getTerminalJson`, `getTerminalText`, `getTerminalCursor` were leaking memory on every call
+  - Each call allocated with `page_allocator.dupe()` but never freed after napigen copied to JS
+  - Fix: Reset arena at the START of each call instead of at the end, allowing returned slice to survive until napigen copies it
+- **terminal-buffer**: Fix persistent terminal not being destroyed on component unmount
+  - Override `destroy()` method to properly call `super.destroy()` and clean up native terminal resources
+
 ## 1.3.0
 
 ### Breaking Changes

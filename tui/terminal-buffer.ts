@@ -6,7 +6,7 @@ import {
   type RenderContext,
   type TextChunk,
 } from "@opentui/core"
-import { ptyToJson, type TerminalData, type TerminalSpan, StyleFlags } from "./ffi"
+import { ptyToJson, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan, StyleFlags } from "./ffi"
 
 const DEFAULT_FG = RGBA.fromHex("#d4d4d4")
 
@@ -188,12 +188,18 @@ export function terminalDataToStyledText(
 }
 
 export interface GhosttyTerminalOptions extends TextBufferOptions {
-  ansi: string | Buffer
+  ansi?: string | Buffer
   cols?: number
   rows?: number
   limit?: number  // Maximum number of lines to render (from start)
   trimEnd?: boolean  // Remove empty lines from the end
   highlights?: HighlightRegion[]  // Regions to highlight with custom background colors
+  /**
+   * Enable persistent mode for streaming/interactive use cases.
+   * When true, the terminal maintains state between feed() calls.
+   * Much more efficient for streaming than updating the ansi prop repeatedly.
+   */
+  persistent?: boolean
 }
 
 /** @deprecated Use GhosttyTerminalOptions instead */
@@ -208,6 +214,10 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   private _highlights?: HighlightRegion[]
   private _ansiDirty: boolean = false
   private _lineCount: number = 0
+  
+  // Persistent terminal support
+  private _persistent: boolean = false
+  private _persistentTerminal: PersistentTerminal | null = null
 
   constructor(ctx: RenderContext, options: GhosttyTerminalOptions) {
     super(ctx, {
@@ -216,12 +226,27 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       wrapMode: "none",
     })
 
-    this._ansi = options.ansi
+    this._ansi = options.ansi ?? ""
     this._cols = options.cols ?? 120
     this._rows = options.rows ?? 40
     this._limit = options.limit
     this._trimEnd = options.trimEnd
     this._highlights = options.highlights
+    this._persistent = options.persistent ?? false
+    
+    // Initialize persistent terminal if enabled
+    if (this._persistent && hasPersistentTerminalSupport()) {
+      this._persistentTerminal = new PersistentTerminal({
+        cols: this._cols,
+        rows: this._rows,
+      })
+      
+      // Feed initial content if provided
+      if (this._ansi && (typeof this._ansi === "string" ? this._ansi.length > 0 : this._ansi.length > 0)) {
+        this._persistentTerminal.feed(this._ansi)
+      }
+    }
+    
     this._ansiDirty = true
   }
 
@@ -273,6 +298,16 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   set ansi(value: string | Buffer) {
     if (this._ansi !== value) {
       this._ansi = value
+      
+      // In persistent mode, setting ansi replaces all content
+      // Note: For streaming, use feed() instead which appends
+      if (this._persistentTerminal) {
+        this._persistentTerminal.reset()
+        if (value && (typeof value === "string" ? value.length > 0 : value.length > 0)) {
+          this._persistentTerminal.feed(value)
+        }
+      }
+      
       this._ansiDirty = true
       this.requestRender()
     }
@@ -285,6 +320,9 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   set cols(value: number) {
     if (this._cols !== value) {
       this._cols = value
+      if (this._persistentTerminal) {
+        this._persistentTerminal.resize(value, this._rows)
+      }
       this._ansiDirty = true
       this.requestRender()
     }
@@ -297,19 +335,101 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   set rows(value: number) {
     if (this._rows !== value) {
       this._rows = value
+      if (this._persistentTerminal) {
+        this._persistentTerminal.resize(this._cols, value)
+      }
       this._ansiDirty = true
       this.requestRender()
     }
   }
 
+  /** Whether this terminal is in persistent mode */
+  get persistent(): boolean {
+    return this._persistent
+  }
+
+  /** Persistent mode cannot be changed after construction */
+  set persistent(_value: boolean) {
+    // No-op: persistent mode is set at construction time and cannot be changed
+  }
+
+  /**
+   * Feed data to the terminal. Only works in persistent mode.
+   * For stateless mode, update the `ansi` property instead.
+   * 
+   * @param data - ANSI data to feed to the terminal
+   */
+  feed(data: string | Buffer): void {
+    if (!this._persistentTerminal) {
+      throw new Error("feed() is only available in persistent mode. Set persistent=true in options.")
+    }
+    this._persistentTerminal.feed(data)
+    this._ansiDirty = true
+    this.requestRender()
+  }
+
+  /**
+   * Reset the terminal to its initial state. Only works in persistent mode.
+   */
+  reset(): void {
+    if (!this._persistentTerminal) {
+      throw new Error("reset() is only available in persistent mode. Set persistent=true in options.")
+    }
+    this._persistentTerminal.reset()
+    this._ansiDirty = true
+    this.requestRender()
+  }
+
+  /**
+   * Get the current cursor position. Only works in persistent mode.
+   * @returns [x, y] cursor position
+   */
+  getCursor(): [number, number] {
+    if (!this._persistentTerminal) {
+      throw new Error("getCursor() is only available in persistent mode. Set persistent=true in options.")
+    }
+    return this._persistentTerminal.getCursor()
+  }
+
+  /**
+   * Get plain text content of the terminal.
+   */
+  getText(): string {
+    if (this._persistentTerminal) {
+      return this._persistentTerminal.getText()
+    }
+    // For stateless mode, we'd need to parse the ANSI - not implemented yet
+    throw new Error("getText() in stateless mode is not implemented. Use persistent=true.")
+  }
+
+  /**
+   * Clean up resources. Called automatically when the component unmounts.
+   */
+  override destroy(): void {
+    if (this._persistentTerminal) {
+      this._persistentTerminal.destroy()
+      this._persistentTerminal = null
+    }
+    super.destroy()
+  }
+
   protected renderSelf(buffer: any): void {
     if (this._ansiDirty) {
-      // Pass limit to ptyToJson - it limits at Zig level before JSON serialization (more efficient!)
-      const data = ptyToJson(this._ansi, { 
-        cols: this._cols, 
-        rows: this._rows,
-        limit: this._limit 
-      })
+      let data: TerminalData
+      
+      if (this._persistentTerminal) {
+        // Use persistent terminal for efficient streaming
+        data = this._persistentTerminal.getJson({
+          limit: this._limit,
+        })
+      } else {
+        // Stateless mode - create terminal each time
+        data = ptyToJson(this._ansi, { 
+          cols: this._cols, 
+          rows: this._rows,
+          limit: this._limit 
+        })
+      }
       
       // Apply trimEnd: remove empty lines from the end
       if (this._trimEnd) {

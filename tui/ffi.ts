@@ -2,9 +2,20 @@ import { platform, arch } from "os"
 import stripAnsi from "strip-ansi"
 
 interface NativeModule {
+  // Stateless functions (create terminal each call)
   ptyToJson(input: string, cols: number, rows: number, offset: number, limit: number): string
   ptyToText(input: string, cols: number, rows: number): string
   ptyToHtml(input: string, cols: number, rows: number): string
+
+  // Persistent terminal management functions
+  createTerminal(id: number, cols: number, rows: number): void
+  destroyTerminal(id: number): void
+  feedTerminal(id: number, data: string): void
+  resizeTerminal(id: number, cols: number, rows: number): void
+  resetTerminal(id: number): void
+  getTerminalJson(id: number, offset: number, limit: number): string
+  getTerminalText(id: number): string
+  getTerminalCursor(id: number): string
 }
 
 function loadNativeModule(): NativeModule | null {
@@ -240,3 +251,176 @@ export const StyleFlags = {
   INVERSE: 16,
   FAINT: 32,
 } as const
+
+// =============================================================================
+// Persistent Terminal API
+// =============================================================================
+
+let nextTerminalId = 1
+
+/**
+ * Generate a unique terminal ID
+ */
+function generateTerminalId(): number {
+  return nextTerminalId++
+}
+
+/**
+ * Check if native persistent terminal API is available
+ */
+export function hasPersistentTerminalSupport(): boolean {
+  return native !== null && typeof native.createTerminal === "function"
+}
+
+export interface PersistentTerminalOptions {
+  cols?: number
+  rows?: number
+}
+
+/**
+ * A persistent terminal instance that maintains state across multiple feed operations.
+ * Much more efficient than ptyToJson for streaming use cases.
+ */
+export class PersistentTerminal {
+  private readonly _id: number
+  private _cols: number
+  private _rows: number
+  private _destroyed = false
+
+  constructor(options: PersistentTerminalOptions = {}) {
+    if (!native) {
+      throw new Error("Native module not available - PersistentTerminal requires native support")
+    }
+
+    this._id = generateTerminalId()
+    this._cols = options.cols ?? 120
+    this._rows = options.rows ?? 40
+
+    native.createTerminal(this._id, this._cols, this._rows)
+  }
+
+  /** The unique identifier for this terminal */
+  get id(): number {
+    return this._id
+  }
+
+  /** Current number of columns */
+  get cols(): number {
+    return this._cols
+  }
+
+  /** Current number of rows */
+  get rows(): number {
+    return this._rows
+  }
+
+  /** Whether this terminal has been destroyed */
+  get destroyed(): boolean {
+    return this._destroyed
+  }
+
+  /**
+   * Feed data to the terminal. Can be called multiple times for streaming.
+   * The terminal maintains state (cursor position, colors, etc.) between calls.
+   */
+  feed(data: Buffer | Uint8Array | string): void {
+    this.assertNotDestroyed()
+    let str: string
+    if (typeof data === "string") {
+      str = data
+    } else if (Buffer.isBuffer(data)) {
+      str = data.toString("utf-8")
+    } else {
+      // Uint8Array - use TextDecoder
+      str = new TextDecoder("utf-8").decode(data)
+    }
+    native!.feedTerminal(this._id, str)
+  }
+
+  /**
+   * Resize the terminal. Existing content will be reflowed if possible.
+   */
+  resize(cols: number, rows: number): void {
+    this.assertNotDestroyed()
+    this._cols = cols
+    this._rows = rows
+    native!.resizeTerminal(this._id, cols, rows)
+  }
+
+  /**
+   * Reset the terminal to its initial state.
+   * Clears all content and resets cursor to origin.
+   */
+  reset(): void {
+    this.assertNotDestroyed()
+    native!.resetTerminal(this._id)
+  }
+
+  /**
+   * Get the current terminal content as TerminalData.
+   */
+  getJson(options: { offset?: number; limit?: number } = {}): TerminalData {
+    this.assertNotDestroyed()
+    const { offset = 0, limit = 0 } = options
+
+    const jsonStr = native!.getTerminalJson(this._id, offset, limit)
+    const raw = JSON.parse(jsonStr) as {
+      cols: number
+      rows: number
+      cursor: [number, number]
+      offset: number
+      totalLines: number
+      lines: Array<Array<[string, string | null, string | null, number, number]>>
+    }
+
+    return {
+      cols: raw.cols,
+      rows: raw.rows,
+      cursor: raw.cursor,
+      offset: raw.offset,
+      totalLines: raw.totalLines,
+      lines: raw.lines.map((line) => ({
+        spans: line.map(([text, fg, bg, flags, width]) => ({
+          text,
+          fg,
+          bg,
+          flags,
+          width,
+        })),
+      })),
+    }
+  }
+
+  /**
+   * Get the current terminal content as plain text.
+   */
+  getText(): string {
+    this.assertNotDestroyed()
+    return native!.getTerminalText(this._id)
+  }
+
+  /**
+   * Get the current cursor position as [x, y].
+   */
+  getCursor(): [number, number] {
+    this.assertNotDestroyed()
+    const json = native!.getTerminalCursor(this._id)
+    return JSON.parse(json) as [number, number]
+  }
+
+  /**
+   * Destroy the terminal and free resources.
+   * The terminal cannot be used after this call.
+   */
+  destroy(): void {
+    if (this._destroyed) return
+    this._destroyed = true
+    native!.destroyTerminal(this._id)
+  }
+
+  private assertNotDestroyed(): void {
+    if (this._destroyed) {
+      throw new Error("Terminal has been destroyed")
+    }
+  }
+}
