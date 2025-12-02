@@ -8,9 +8,8 @@
     "declarationMap": true,
     "noEmit": false,
     "allowImportingTsExtensions": false,
-    "moduleResolution": "node",
     "types": ["bun-types"]
   },
   "include": ["tui/ffi.ts", "tui/terminal-buffer.ts"],
-  "exclude": [ "tui/*.test.tsx", "tui/bench.test.tsx"]
+  "exclude": ["tui/*.test.tsx", "tui/bench.test.tsx"]
 }
