@@ -1,6 +1,6 @@
 {
   "name": "ghostty-opentui",
-  "version": "1.3.2",
+  "version": "1.3.3",
   "description": "Fast ANSI/VT terminal parser powered by Ghostty's Zig terminal emulation library",
   "main": "./dist/ffi.js",
   "types": "./dist/ffi.d.ts",
