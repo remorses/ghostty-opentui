@@ -6,12 +6,14 @@
   "types": "./dist/ffi.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/ffi.d.ts",
       "require": "./dist/ffi.js",
-      "types": "./dist/ffi.d.ts"
+      "default": "./dist/ffi.js"
     },
     "./terminal-buffer": {
+      "types": "./dist/terminal-buffer.d.ts",
       "require": "./dist/terminal-buffer.js",
-      "types": "./dist/terminal-buffer.d.ts"
+      "default": "./dist/terminal-buffer.js"
     }
   },
   "files": [
