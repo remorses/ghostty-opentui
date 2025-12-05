@@ -1,6 +1,6 @@
 {
   "name": "ghostty-opentui",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Fast ANSI/VT terminal parser powered by Ghostty's Zig terminal emulation library",
   "exports": {
     ".": {
@@ -23,8 +23,8 @@
     }
   },
   "files": [
-    "dist/**/*",
-    "zig-out/lib/ghostty-opentui.node"
+    "dist",
+    "src"
   ],
   "scripts": {
     "dev": "bun --watch run tui/example.tsx",

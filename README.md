@@ -447,6 +447,8 @@ Windows cannot use the native Zig library due to a **Zig build system bug** with
 
 This means Windows users get functional output, just without syntax highlighting. For full color support on Windows, use **WSL** (Windows Subsystem for Linux).
 
+> **Note:** Persistent terminal mode (`persistent: true`) is not available on Windows. If you request persistent mode, the component silently falls back to stateless mode. Methods like `feed()`, `reset()`, `getCursor()`, and `getText()` will throw errors. Use `hasPersistentTerminalSupport()` to check availability at runtime.
+
 ## Requirements
 
 - **Zig 0.15.2** - Required by Ghostty
