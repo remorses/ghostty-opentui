@@ -1,17 +1,23 @@
 {
   "name": "ghostty-opentui",
-  "version": "1.3.3",
+  "version": "1.3.4",
   "description": "Fast ANSI/VT terminal parser powered by Ghostty's Zig terminal emulation library",
-  "main": "./dist/ffi.js",
-  "types": "./dist/ffi.d.ts",
   "exports": {
     ".": {
       "types": "./dist/ffi.d.ts",
+      "bun": "./src/ffi.ts",
       "require": "./dist/ffi.js",
       "default": "./dist/ffi.js"
     },
     "./terminal-buffer": {
       "types": "./dist/terminal-buffer.d.ts",
+      "bun": "./src/terminal-buffer.ts",
+      "require": "./dist/terminal-buffer.js",
+      "default": "./dist/terminal-buffer.js"
+    },
+    "./opentui": {
+      "types": "./dist/terminal-buffer.d.ts",
+      "bun": "./src/terminal-buffer.ts",
       "require": "./dist/terminal-buffer.js",
       "default": "./dist/terminal-buffer.js"
     }
