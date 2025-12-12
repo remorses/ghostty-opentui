@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.3.7
+
+### Bug Fixes
+
+- **zig**: Fix ANSI escape sequences split across PTY data chunks
+  - `PersistentTerminal` was creating a new VT stream for every `feed()` call, losing parser state between calls
+  - When ANSI sequences were split across multiple data chunks (common with streaming PTY data), partial sequences appeared as literal characters like `[38;`, `m`, `;27H` in the output
+  - Fix: Store the stream persistently and reuse it across `feed()` calls, preserving parser state
+
+### Features
+
+- **ffi**: Add `isReady()` method to `PersistentTerminal`
+  - Returns `true` if parser is in ground state (all escape sequences fully processed)
+  - Use after `feed()` to ensure you're not reading partial terminal state
+
 ## 1.3.6
 
 ### Features
