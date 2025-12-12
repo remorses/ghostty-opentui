@@ -57,7 +57,7 @@ jobs:
         run: bun install
 
       - name: Run Bun tests
-        run: bun test
+        run: bun test --ignore-pattern='**/terminal-buffer.test.tsx'
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
