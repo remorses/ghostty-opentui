@@ -362,6 +362,18 @@ export class PersistentTerminal {
   }
 
   /**
+   * Check if the terminal is ready for reading.
+   * Returns true if the parser is in ground state, meaning all escape
+   * sequences have been fully processed.
+   * 
+   * Use this after feed() to ensure you're not reading partial state.
+   */
+  isReady(): boolean {
+    this.assertNotDestroyed()
+    return native!.isTerminalReady(this._id)
+  }
+
+  /**
    * Destroy the terminal and free resources.
    * The terminal cannot be used after this call.
    */

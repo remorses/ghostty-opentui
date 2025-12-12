@@ -262,10 +262,17 @@ fn getArenaAllocator() std.mem.Allocator {
 // Persistent Terminal Management
 // =============================================================================
 
+/// The stream type returned by Terminal.vtStream()
+const ReadonlyStream = @typeInfo(@TypeOf(ghostty_vt.Terminal.vtStream)).@"fn".return_type.?;
+
 /// A persistent terminal instance
 const PersistentTerminal = struct {
     terminal: ghostty_vt.Terminal,
     allocator: std.mem.Allocator,
+    /// Persistent stream that maintains parser state across feed() calls.
+    /// This is critical for handling ANSI escape sequences that may be split
+    /// across multiple data chunks from the PTY.
+    stream: ?ReadonlyStream,
 
     pub fn init(alloc: std.mem.Allocator, cols: u16, rows: u16) !PersistentTerminal {
         var terminal = try ghostty_vt.Terminal.init(alloc, .{
@@ -280,18 +287,39 @@ const PersistentTerminal = struct {
         return .{
             .terminal = terminal,
             .allocator = alloc,
+            // Stream is created lazily in initStream() after the struct is at its final location.
+            // This is necessary because the stream holds a pointer to the terminal.
+            .stream = null,
         };
     }
 
+    /// Initialize the stream after the struct has been placed at its final heap location.
+    /// Must be called once after init() before any feed() calls.
+    pub fn initStream(self: *PersistentTerminal) void {
+        self.stream = self.terminal.vtStream();
+    }
+
     pub fn deinit(self: *PersistentTerminal) void {
+        if (self.stream) |*s| {
+            s.deinit();
+        }
         self.terminal.deinit(self.allocator);
     }
 
     pub fn feed(self: *PersistentTerminal, data: []const u8) !void {
-        // Create a stream for this feed operation
-        var stream = self.terminal.vtStream();
-        defer stream.deinit();
-        try stream.nextSlice(data);
+        // Use the persistent stream to maintain parser state across calls.
+        // This ensures that escape sequences split across multiple chunks
+        // are parsed correctly.
+        try self.stream.?.nextSlice(data);
+    }
+
+    /// Returns true if the parser is in ground state, meaning all escape
+    /// sequences have been fully processed and it's safe to read terminal content.
+    pub fn isReady(self: *const PersistentTerminal) bool {
+        if (self.stream) |s| {
+            return s.parser.state == .ground;
+        }
+        return true;
     }
 
     pub fn resize(self: *PersistentTerminal, cols: u16, rows: u16) !void {
@@ -300,6 +328,11 @@ const PersistentTerminal = struct {
 
     pub fn reset(self: *PersistentTerminal) void {
         self.terminal.fullReset();
+        // Recreate the stream to reset parser state
+        if (self.stream) |*s| {
+            s.deinit();
+        }
+        self.stream = self.terminal.vtStream();
     }
 };
 
@@ -338,6 +371,10 @@ fn createTerminal(id: u32, cols: u32, rows: u32) !void {
         @intCast(cols),
         @intCast(rows),
     );
+
+    // Initialize the stream after the struct is at its final heap location.
+    // This is critical because the stream holds a pointer to the terminal.
+    term_ptr.initStream();
 
     try map.put(id, term_ptr);
 }
@@ -437,6 +474,18 @@ fn getTerminalCursor(id: u32) ![]const u8 {
     // Note: arena is reset at the START of the next call, not here.
 
     return std.fmt.allocPrint(alloc, "[{},{}]", .{ screen.cursor.x, screen.cursor.y });
+}
+
+/// Check if terminal is ready for reading (parser in ground state).
+/// Returns true if all escape sequences have been fully processed.
+fn isTerminalReady(id: u32) !bool {
+    terminals_mutex.lock();
+    defer terminals_mutex.unlock();
+
+    const map = getTerminalsMap();
+    const term = map.get(id) orelse return error.TerminalNotFound;
+
+    return term.isReady();
 }
 
 /// Convert PTY input to JSON format
@@ -550,6 +599,7 @@ fn initModule(js: *napigen.JsContext, exports: napigen.napi_value) anyerror!napi
     try js.setNamedProperty(exports, "getTerminalJson", try js.createFunction(getTerminalJson));
     try js.setNamedProperty(exports, "getTerminalText", try js.createFunction(getTerminalText));
     try js.setNamedProperty(exports, "getTerminalCursor", try js.createFunction(getTerminalCursor));
+    try js.setNamedProperty(exports, "isTerminalReady", try js.createFunction(isTerminalReady));
 
     return exports;
 }
@@ -661,6 +711,7 @@ test "PersistentTerminal init and deinit" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Verify terminal was created with correct dimensions
@@ -672,6 +723,7 @@ test "PersistentTerminal feed data" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Feed some data
@@ -685,6 +737,7 @@ test "PersistentTerminal feed multiple times" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Feed data in multiple chunks (simulating streaming)
@@ -702,6 +755,7 @@ test "PersistentTerminal reset" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Feed some data
@@ -722,6 +776,7 @@ test "PersistentTerminal resize" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Feed some data
@@ -739,6 +794,7 @@ test "PersistentTerminal preserves state across feeds" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Feed ANSI with color that sets state
@@ -760,6 +816,7 @@ test "PersistentTerminal handles cursor movement" {
     const alloc = testing.allocator;
 
     var term = try PersistentTerminal.init(alloc, 80, 24);
+    term.initStream();
     defer term.deinit();
 
     // Move cursor to position 5,5

@@ -13,6 +13,7 @@ export interface NativeModule {
   getTerminalJson(id: number, offset: number, limit: number): string
   getTerminalText(id: number): string
   getTerminalCursor(id: number): string
+  isTerminalReady(id: number): boolean
 }
 
 export const native: NativeModule | null
