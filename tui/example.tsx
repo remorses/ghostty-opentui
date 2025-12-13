@@ -25,13 +25,13 @@ function findWordHighlights(
     const line = data.lines[lineIdx]
     // Build the plain text for this line
     const lineText = line.spans.map((s) => s.text).join("")
-    
+
     // Find all occurrences of the word in this line
     let pos = 0
     while (true) {
       const idx = lineText.indexOf(word, pos)
       if (idx === -1) break
-      
+
       highlights.push({
         line: lineIdx,
         start: idx,
