@@ -143,9 +143,112 @@ export function applyHighlightsToLine(
   return result
 }
 
+export interface CursorStyle {
+  /** Whether to show the cursor */
+  visible?: boolean
+  /** Cursor style: 'block' inverts colors, 'underline' adds underline attribute */
+  style?: "block" | "underline"
+}
+
+/**
+ * Applies cursor styling to chunks for a specific line.
+ * For 'block' style, inverts fg/bg colors at cursor position.
+ * For 'underline' style, adds underline attribute.
+ */
+function applyCursorToLine(
+  chunks: TextChunk[],
+  cursorX: number,
+  cursorStyle: "block" | "underline",
+): TextChunk[] {
+  const result: TextChunk[] = []
+  let col = 0
+
+  for (const chunk of chunks) {
+    const chunkStart = col
+    const chunkEnd = col + chunk.text.length
+
+    // Check if cursor is within this chunk
+    if (cursorX >= chunkStart && cursorX < chunkEnd) {
+      const posInChunk = cursorX - chunkStart
+
+      // Text before cursor
+      if (posInChunk > 0) {
+        result.push({
+          __isChunk: true,
+          text: chunk.text.slice(0, posInChunk),
+          fg: chunk.fg,
+          bg: chunk.bg,
+          attributes: chunk.attributes,
+        })
+      }
+
+      // Character at cursor (or space if at end)
+      const cursorChar = chunk.text[posInChunk] || " "
+      if (cursorStyle === "block") {
+        // Invert colors for block cursor
+        result.push({
+          __isChunk: true,
+          text: cursorChar,
+          fg: chunk.bg || RGBA.fromHex("#1e1e1e"),
+          bg: chunk.fg || DEFAULT_FG,
+          attributes: chunk.attributes,
+        })
+      } else {
+        // Underline cursor
+        result.push({
+          __isChunk: true,
+          text: cursorChar,
+          fg: chunk.fg,
+          bg: chunk.bg,
+          attributes: (chunk.attributes ?? 0) | TextAttributes.UNDERLINE,
+        })
+      }
+
+      // Text after cursor
+      if (posInChunk + 1 < chunk.text.length) {
+        result.push({
+          __isChunk: true,
+          text: chunk.text.slice(posInChunk + 1),
+          fg: chunk.fg,
+          bg: chunk.bg,
+          attributes: chunk.attributes,
+        })
+      }
+    } else {
+      result.push(chunk)
+    }
+
+    col = chunkEnd
+  }
+
+  // If cursor is beyond line content, add a cursor block at end
+  if (cursorX >= col) {
+    if (cursorStyle === "block") {
+      result.push({
+        __isChunk: true,
+        text: " ",
+        fg: RGBA.fromHex("#1e1e1e"),
+        bg: DEFAULT_FG,
+        attributes: 0,
+      })
+    } else {
+      result.push({
+        __isChunk: true,
+        text: " ",
+        fg: DEFAULT_FG,
+        bg: undefined,
+        attributes: TextAttributes.UNDERLINE,
+      })
+    }
+  }
+
+  return result
+}
+
 export function terminalDataToStyledText(
   data: TerminalData,
   highlights?: HighlightRegion[],
+  cursor?: { x: number; y: number; style: "block" | "underline" },
 ): StyledText {
   const chunks: TextChunk[] = []
 
@@ -177,6 +280,11 @@ export function terminalDataToStyledText(
       lineChunks = applyHighlightsToLine(lineChunks, lineHighlights)
     }
 
+    // Apply cursor for this line
+    if (cursor && i === cursor.y) {
+      lineChunks = applyCursorToLine(lineChunks, cursor.x, cursor.style)
+    }
+
     chunks.push(...lineChunks)
 
     if (i < data.lines.length - 1) {
@@ -200,6 +308,14 @@ export interface GhosttyTerminalOptions extends TextBufferOptions {
    * Much more efficient for streaming than updating the ansi prop repeatedly.
    */
   persistent?: boolean
+  /**
+   * Show the terminal cursor. Defaults to false.
+   */
+  showCursor?: boolean
+  /**
+   * Cursor style: 'block' (inverts colors) or 'underline'. Defaults to 'block'.
+   */
+  cursorStyle?: "block" | "underline"
 }
 
 /** @deprecated Use GhosttyTerminalOptions instead */
@@ -214,6 +330,8 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   private _highlights?: HighlightRegion[]
   private _ansiDirty: boolean = false
   private _lineCount: number = 0
+  private _showCursor: boolean = false
+  private _cursorStyle: "block" | "underline" = "block"
   
   // Persistent terminal support
   private _persistent: boolean = false
@@ -233,6 +351,8 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     this._trimEnd = options.trimEnd
     this._highlights = options.highlights
     this._persistent = options.persistent ?? false
+    this._showCursor = options.showCursor ?? false
+    this._cursorStyle = options.cursorStyle ?? "block"
     
     // Initialize persistent terminal if enabled
     if (this._persistent && hasPersistentTerminalSupport()) {
@@ -289,6 +409,30 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     this._highlights = value
     this._ansiDirty = true
     this.requestRender()
+  }
+
+  get showCursor(): boolean {
+    return this._showCursor
+  }
+
+  set showCursor(value: boolean) {
+    if (this._showCursor !== value) {
+      this._showCursor = value
+      this._ansiDirty = true
+      this.requestRender()
+    }
+  }
+
+  get cursorStyle(): "block" | "underline" {
+    return this._cursorStyle
+  }
+
+  set cursorStyle(value: "block" | "underline") {
+    if (this._cursorStyle !== value) {
+      this._cursorStyle = value
+      this._ansiDirty = true
+      this.requestRender()
+    }
   }
 
   get ansi(): string | Buffer {
@@ -441,7 +585,14 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
         }
       }
       
-      const styledText = terminalDataToStyledText(data, this._highlights)
+      // Build cursor info if enabled
+      const cursor = this._showCursor ? {
+        x: data.cursor[0],
+        y: data.cursor[1],
+        style: this._cursorStyle,
+      } : undefined
+      
+      const styledText = terminalDataToStyledText(data, this._highlights, cursor)
       this.textBuffer.setStyledText(styledText)
       this.updateTextInfo()
       
