@@ -12,7 +12,6 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Build macOS and cross-compile Linux from macOS
   build:
     runs-on: macos-latest
 
@@ -35,13 +34,13 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Build macOS and Linux targets
+      - name: Build all targets
         uses: nick-fields/retry@v3
         with:
           timeout_minutes: 15
           max_attempts: 3
           retry_on: error
-          command: bun scripts/build.ts darwin-arm64 darwin-x64 linux-x64 linux-arm64
+          command: bun scripts/build.ts
 
       - name: Run tests
         run: bun test
@@ -51,46 +50,6 @@ jobs:
         with:
           name: dist
           path: dist/
-
-  # Build Windows natively (cross-compile from macOS fails)
-  build-windows:
-    runs-on: windows-latest
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          fetch-depth: 0
-
-      - name: Setup Zig
-        uses: goto-bus-stop/setup-zig@v2
-        with:
-          version: 0.15.2
-
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
-        with:
-          bun-version: latest
-
-      - name: Install dependencies
-        run: bun install
-
-      - name: Build Windows
-        uses: nick-fields/retry@v3
-        with:
-          timeout_minutes: 15
-          max_attempts: 3
-          retry_on: error
-          command: bun scripts/build.ts win32-x64
-
-      - name: Run tests
-        run: bun test
-
-      - name: Upload Windows artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: dist-windows
-          path: dist/win32-x64/
 
   test-linux:
     needs: [build]
@@ -115,3 +74,42 @@ jobs:
 
       - name: Run tests
         run: bun test
+
+  publish:
+    needs: [build, test-linux]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build TypeScript
+        run: bun run build
+
+      - name: List dist contents
+        run: ls -laR dist/
+
+      - name: Publish to npm
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

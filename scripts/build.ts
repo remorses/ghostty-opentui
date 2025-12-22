@@ -20,7 +20,8 @@ const TARGETS: Target[] = [
   // { name: "linux-arm64-musl", zigTarget: "aarch64-linux-musl" },
   { name: "darwin-x64", zigTarget: "x86_64-macos" },
   { name: "darwin-arm64", zigTarget: "aarch64-macos" },
-  { name: "win32-x64", zigTarget: "x86_64-windows-gnu" },
+  // Windows disabled - Zig build system crashes on Windows, cross-compiled binary segfaults
+  // { name: "win32-x64", zigTarget: "x86_64-windows-gnu" },
 ]
 
 async function build(target: Target): Promise<boolean> {

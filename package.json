@@ -7,7 +7,7 @@
     "dev": "bun --watch run tui/example.tsx",
     "build": "tsc && cp src/native-lib.cjs src/native-lib.d.cts dist/",
     "build:zig": "zig build",
-    "prepublishOnly": "bun scripts/build.ts && bun run build",
+    "prepublishOnly": "[ -n \"$CI\" ] || (echo 'Error: Do not publish locally. Push to main and let CI handle it.' && exit 1)",
     "test": "bun test",
     "bench": "vitest bench --run"
   },

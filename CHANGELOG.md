@@ -4,10 +4,10 @@
 
 ### Features
 
-- **platform support**: Add native binaries for 5 platforms
+- **platform support**: Add cross-compiled native binaries for 4 platforms
   - Linux: `x64`, `arm64`
   - macOS: `arm64`, `x64`
-  - Windows: `x64` (built natively, cross-compile from macOS fails)
+  - Windows: uses `strip-ansi` fallback (Zig build issues on Windows)
 - **build**: Add `scripts/build.ts` for local cross-compilation of all targets
   - Uses Zig's cross-compilation to build all platforms from a single machine
   - Run `bun scripts/build.ts` to build all, or `bun scripts/build.ts darwin-arm64` for specific target
