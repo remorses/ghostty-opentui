@@ -2,6 +2,14 @@
 
 ## 1.3.8
 
+### Performance
+
+- **zig**: Add early exit optimization for `limit` parameter
+  - When `limit` is set, parsing stops once enough lines are collected
+  - 10K lines with `limit=100`: 557ms → 3.2ms (**174x faster**)
+  - 20K lines with `limit=100`: 1,869ms → 6.4ms (**292x faster**)
+  - Works correctly with cursor movement, clear screen, and other complex escape sequences
+
 ### Documentation
 
 - Add benchmarks section to README with performance numbers

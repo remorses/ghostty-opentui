@@ -464,6 +464,17 @@ Performance measured on Apple Silicon (M-series). Run benchmarks with `bun run b
 | 10K lines | 1.8 | 547ms |
 | 20K lines | 0.5 | 1,808ms |
 
+### Early Exit with `limit` Parameter
+
+When `limit` is set, parsing stops early once enough lines are collected. This provides massive speedups for large inputs:
+
+| Input Size | No Limit | With limit=100 | Speedup |
+|------------|----------|----------------|--------:|
+| 10K lines | 557ms | 3.2ms | **174x** |
+| 20K lines | 1,869ms | 6.4ms | **292x** |
+
+This works correctly even with complex terminal output (cursor movement, clear screen, etc.) because we check the actual terminal buffer state, not just input lines.
+
 ### Persistent vs Stateless Mode
 
 For streaming scenarios (feeding data in 100 chunks):
@@ -477,9 +488,9 @@ Use `persistent: true` for streaming/interactive terminals for significant perfo
 
 ### Key Insights
 
-- **Linear scaling** - 10K lines takes ~10x longer than 1K lines
+- **Use `limit` for large files** - 292x faster for 20K lines with `limit=100`
 - **Persistent mode is ~6x faster** for streaming use cases
-- **`limit` parameter** reduces JSON output but still parses full input (parsing is the bottleneck)
+- **Linear scaling without limit** - 10K lines takes ~10x longer than 1K lines
 
 ## Requirements
 
