@@ -75,8 +75,29 @@ jobs:
       - name: Run tests
         run: bun test
 
+  test-windows:
+    needs: [build]
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Test with Node.js
+        run: node scripts/test-node.cjs
+
   publish:
-    needs: [build, test-linux]
+    needs: [build, test-linux, test-windows]
     runs-on: ubuntu-latest
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 

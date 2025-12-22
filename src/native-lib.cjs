@@ -23,7 +23,11 @@ function loadNativeModule() {
     return require("../dist/linux-x64/ghostty-opentui.node")
   }
 
-  // Windows - not supported (Zig build issues), use strip-ansi fallback
+  if (p === "win32" && a === "x64") {
+    return require("../dist/win32-x64/ghostty-opentui.node")
+  }
+
+  // Windows non-x64 fallback
   if (p === "win32") {
     return null
   }
