@@ -5,6 +5,7 @@ const ghostty_vt = @import("ghostty-vt");
 const color = ghostty_vt.color;
 const pagepkg = ghostty_vt.page;
 const formatter = ghostty_vt.formatter;
+const Screen = ghostty_vt.Screen;
 
 // Disable all logging from ghostty-vt library
 pub const std_options: std.Options = .{
@@ -121,6 +122,27 @@ fn writeColor(writer: anytype, rgb: ?color.RGB) !void {
     }
 }
 
+/// Count total lines in terminal screen
+fn countLines(screen: *Screen) usize {
+    var total: usize = 0;
+    var iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
+    while (iter.next()) |_| {
+        total += 1;
+    }
+    return total;
+}
+
+/// Check if terminal has at least `threshold` lines - O(threshold) not O(total)
+fn hasEnoughLines(screen: *Screen, threshold: usize) bool {
+    var count: usize = 0;
+    var iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
+    while (iter.next()) |_| {
+        count += 1;
+        if (count >= threshold) return true;
+    }
+    return false;
+}
+
 pub fn writeJsonOutput(
     writer: anytype,
     t: *ghostty_vt.Terminal,
@@ -131,11 +153,7 @@ pub fn writeJsonOutput(
     const palette = &t.colors.palette.current;
     const terminal_bg = t.colors.background.get();
 
-    var total_lines: usize = 0;
-    var count_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
-    while (count_iter.next()) |_| {
-        total_lines += 1;
-    }
+    const total_lines = countLines(screen);
 
     try writer.writeAll("{");
     try writer.print("\"cols\":{},\"rows\":{},", .{ screen.pages.cols, screen.pages.rows });
@@ -490,6 +508,7 @@ fn isTerminalReady(id: u32) !bool {
 
 /// Convert PTY input to JSON format
 /// Returns JSON string with terminal data (cols, rows, cursor, lines with styled spans)
+/// When limit is set, uses chunked parsing with early exit for better performance.
 fn ptyToJson(input: []const u8, cols: u32, rows: u32, offset: u32, limit: u32) ![]const u8 {
     const alloc = getArenaAllocator();
     // Note: arena is reset at the START of the next call, not here.
@@ -511,7 +530,30 @@ fn ptyToJson(input: []const u8, cols: u32, rows: u32, offset: u32, limit: u32) !
     var stream = t.vtStream();
     defer stream.deinit();
 
-    try stream.nextSlice(input);
+    // When limit is set, use chunked parsing with early exit
+    // This allows us to stop parsing once we have enough lines
+    if (lim) |line_limit| {
+        const chunk_size: usize = 4096; // Process 4KB at a time
+        const threshold = line_limit + offset + 20; // Extra buffer for safety
+        var pos: usize = 0;
+
+        while (pos < input.len) {
+            const end = @min(pos + chunk_size, input.len);
+            try stream.nextSlice(input[pos..end]);
+            pos = end;
+
+            // Check if we have enough lines and parser is in ground state
+            // (not in the middle of an escape sequence)
+            if (stream.parser.state == .ground) {
+                if (hasEnoughLines(t.screens.active, threshold)) {
+                    break; // Early exit!
+                }
+            }
+        }
+    } else {
+        // No limit - parse everything
+        try stream.nextSlice(input);
+    }
 
     var output: std.ArrayListAligned(u8, null) = .empty;
     try writeJsonOutput(output.writer(alloc), &t, @intCast(offset), lim);

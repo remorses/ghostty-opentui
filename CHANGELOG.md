@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.3.8
+
+### Documentation
+
+- Add benchmarks section to README with performance numbers
+- Add vitest benchmark suite (`bun run bench`)
+  - Tests ptyToJson, ptyToText, ptyToHtml at various input sizes
+  - Compares persistent vs stateless terminal modes
+  - Tests pagination with offset/limit
+
 ## 1.3.7
 
 ### Bug Fixes
