@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test"
 import { rgbToHex } from "@opentui/core"
 import { ptyToJson, type TerminalData } from "./ffi"
-import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer"
+import { terminalDataToStyledText } from "./terminal-buffer"
 
 function getLines(data: TerminalData): string[] {
   return data.lines
@@ -64,17 +64,4 @@ test("LF now works like CRLF with linefeed mode", () => {
   `)
 })
 
-test("highlight with replaceWithX on import statement", () => {
-  const ansi = `\x1b[38;2;197;134;192mimport\x1b[0m { readFileSync } \x1b[38;2;197;134;192mfrom\x1b[0m \x1b[38;2;206;145;120m'fs'\x1b[0m;`
-  
-  const data = ptyToJson(ansi, { cols: 120, rows: 1, limit: 1 })
-  const highlights: HighlightRegion[] = [
-    { line: 0, start: 0, end: 6, backgroundColor: "#ffff00", replaceWithX: true },
-  ]
-  const styled = terminalDataToStyledText(data, highlights)
-  
-  // Should have "xxxxxx" with yellow background replacing "import"
-  const maskedChunk = styled.chunks.find((c) => c.text === "xxxxxx")
-  expect(maskedChunk).toBeDefined()
-  expect(maskedChunk?.bg ? rgbToHex(maskedChunk.bg) : undefined).toBe("#ffff00")
-})
+

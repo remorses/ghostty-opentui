@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { rgbToHex } from "@opentui/core"
 import { ptyToJson, ptyToText, StyleFlags, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan } from "./ffi"
-import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer"
+import { terminalDataToStyledText } from "./terminal-buffer"
 
 describe("ptyToJson", () => {
   it("should parse simple ANSI text", () => {
@@ -113,36 +113,7 @@ describe("StyleFlags", () => {
   })
 })
 
-describe("terminalDataToStyledText highlights", () => {
-  it("should apply highlight with replaceWithX", () => {
-    const input = "hello world"
-    const data = ptyToJson(input, { cols: 80, rows: 24 })
-    const highlights: HighlightRegion[] = [
-      { line: 0, start: 0, end: 5, backgroundColor: "#ff0000", replaceWithX: true },
-    ]
-    const styled = terminalDataToStyledText(data, highlights)
-    
-    // Should have "xxxxx" with red background
-    const maskedChunk = styled.chunks.find((c) => c.text === "xxxxx")
-    expect(maskedChunk).toBeDefined()
-    expect(maskedChunk?.bg ? rgbToHex(maskedChunk.bg) : undefined).toBe("#ff0000")
-  })
 
-  it("should highlight without replacing text", () => {
-    const input = "test string"
-    const data = ptyToJson(input, { cols: 80, rows: 24 })
-    const highlights: HighlightRegion[] = [
-      { line: 0, start: 5, end: 11, backgroundColor: "#00ff00" },
-    ]
-    const styled = terminalDataToStyledText(data, highlights)
-    
-    // Should have "string" with green background
-    const highlightedChunk = styled.chunks.find(
-      (c) => c.text === "string" && c.bg && rgbToHex(c.bg) === "#00ff00"
-    )
-    expect(highlightedChunk).toBeDefined()
-  })
-})
 
 describe("ptyToText", () => {
   it("should handle large output without truncation", () => {

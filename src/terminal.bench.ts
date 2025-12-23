@@ -1,5 +1,5 @@
 import { bench, describe } from "vitest"
-import { ptyToJson, ptyToText, ptyToHtml, PersistentTerminal, hasPersistentTerminalSupport } from "./ffi"
+import { ptyToJson, ptyToText, PersistentTerminal, hasPersistentTerminalSupport } from "./ffi"
 import fs from "fs"
 
 // =============================================================================
@@ -91,24 +91,6 @@ describe("ptyToText - Plain Text Extraction", () => {
 
   bench("large (5K lines)", () => {
     ptyToText(LARGE_ANSI_5K)
-  })
-})
-
-// =============================================================================
-// Benchmarks: ptyToHtml (HTML generation)
-// =============================================================================
-
-describe("ptyToHtml - HTML Generation", () => {
-  bench("small", () => {
-    ptyToHtml(SMALL_ANSI)
-  })
-
-  bench("medium", () => {
-    ptyToHtml(MEDIUM_ANSI)
-  })
-
-  bench("large (1K lines)", () => {
-    ptyToHtml(LARGE_ANSI_1K)
   })
 })
 

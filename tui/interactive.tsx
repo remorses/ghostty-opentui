@@ -2,10 +2,10 @@ import { createCliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, useTerminalDimensions, useOnResize, extend } from "@opentui/react"
 import { useState, useRef } from "react"
 import { spawn, type IPty } from "bun-pty"
-import { GhosttyTerminalRenderable } from "../src/terminal-buffer"
+import { TerminalRenderable } from "../src/terminal-buffer"
 
-// Register the ghostty-terminal component
-extend({ "ghostty-terminal": GhosttyTerminalRenderable })
+// Register the terminal component (for streaming/interactive use)
+extend({ "terminal": TerminalRenderable })
 
 interface Button {
   label: string
@@ -32,7 +32,7 @@ function App() {
   const [selectedButton, setSelectedButton] = useState(0)
   const [status, setStatus] = useState("Starting...")
   const ptyRef = useRef<IPty | null>(null)
-  const terminalRef = useRef<GhosttyTerminalRenderable>(null)
+  const terminalRef = useRef<TerminalRenderable>(null)
   
   // Get terminal dimensions and calculate cols/rows for the embedded terminal
   const { width, height } = useTerminalDimensions()
@@ -170,9 +170,8 @@ function App() {
         <box style={{ height: 1, paddingLeft: 1, backgroundColor: "#333" }}>
           <text fg="#58a6ff">Terminal Output</text>
         </box>
-        <ghostty-terminal
+        <terminal
           ref={terminalRef}
-          persistent
           cols={cols}
           rows={rows}
           trimEnd

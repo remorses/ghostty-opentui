@@ -467,42 +467,6 @@ export fn ptyToText(
     return @constCast(output.ptr);
 }
 
-/// Convert PTY input to styled HTML
-export fn ptyToHtml(
-    input_ptr: [*]const u8,
-    input_len: usize,
-    cols: u16,
-    rows: u16,
-    out_len: *usize,
-) ?[*]u8 {
-    const input = input_ptr[0..input_len];
-
-    // Use unlimited scrollback so we don't lose content
-    var t: ghostty_vt.Terminal = ghostty_vt.Terminal.init(globalArena, .{
-        .cols = cols,
-        .rows = rows,
-        .max_scrollback = std.math.maxInt(usize),
-    }) catch return null;
-    defer t.deinit(globalArena);
-
-    // Enable linefeed mode so LF (\n) also performs carriage return (moves to column 0)
-    t.modes.set(.linefeed, true);
-
-    var stream = t.vtStream();
-    defer stream.deinit();
-
-    stream.nextSlice(input) catch return null;
-
-    // Use the ghostty formatter with html format to get styled HTML
-    var builder: std.Io.Writer.Allocating = .init(globalArena);
-    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .html);
-    fmt.format(&builder.writer) catch return null;
-
-    const output = builder.writer.buffered();
-    out_len.* = output.len;
-    return @constCast(output.ptr);
-}
-
 // =============================================================================
 // FFI Export Functions - Persistent Terminal API
 // =============================================================================
@@ -728,32 +692,6 @@ test "ptyToText handles multiline with ANSI" {
 
     const output = builder.writer.buffered();
     try testing.expectEqualStrings("Bold\nUnderline", output);
-}
-
-test "ptyToHtml returns styled HTML" {
-    const alloc = testing.allocator;
-
-    var t: ghostty_vt.Terminal = try .init(alloc, .{ .cols = 80, .rows = 24 });
-    defer t.deinit(alloc);
-
-    t.modes.set(.linefeed, true);
-
-    var stream = t.vtStream();
-    defer stream.deinit();
-
-    // Input with ANSI color codes: red "Hello"
-    try stream.nextSlice("\x1b[31mHello\x1b[0m");
-
-    var builder: std.Io.Writer.Allocating = .init(alloc);
-    defer builder.deinit();
-
-    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .html);
-    try fmt.format(&builder.writer);
-
-    const output = builder.writer.buffered();
-    // HTML output should contain style tags and the text
-    try testing.expect(std.mem.indexOf(u8, output, "Hello") != null);
-    try testing.expect(std.mem.indexOf(u8, output, "<") != null);
 }
 
 // =============================================================================

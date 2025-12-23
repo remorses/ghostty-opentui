@@ -1,7 +1,6 @@
 import { dlopen, FFIType, ptr, toArrayBuffer, suffix, type Pointer } from "bun:ffi"
 import path from "path"
 import { platform, arch } from "os"
-import stripAnsi from "strip-ansi"
 
 // =============================================================================
 // FFI Library Loading
@@ -54,10 +53,6 @@ const symbols = {
     returns: FFIType.ptr,
   },
   ptyToText: {
-    args: [FFIType.ptr, "usize" as const, FFIType.u16, FFIType.u16, FFIType.ptr] as const,
-    returns: FFIType.ptr,
-  },
-  ptyToHtml: {
     args: [FFIType.ptr, "usize" as const, FFIType.u16, FFIType.u16, FFIType.ptr] as const,
     returns: FFIType.ptr,
   },
@@ -161,68 +156,15 @@ function readStringFromPointer(resultPtr: Pointer | null, outLenBuffer: BigUint6
   return str
 }
 
-// =============================================================================
-// Fallback Implementations (for Windows or when native unavailable)
-// =============================================================================
 
-/**
- * Windows fallback: strips ANSI codes and returns plain text lines
- */
-function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJsonOptions = {}): TerminalData {
-  const { cols = 120, rows = 40, offset = 0, limit = 0 } = options
-
-  const text = typeof input === "string" ? input : input.toString("utf-8")
-  const plainText = stripAnsi(text)
-  const allLines = plainText.split("\n")
-
-  // Apply offset and limit
-  const startLine = offset
-  const endLine = limit > 0 ? Math.min(startLine + limit, allLines.length) : allLines.length
-  const selectedLines = allLines.slice(startLine, endLine)
-
-  return {
-    cols,
-    rows,
-    cursor: [0, selectedLines.length],
-    offset,
-    totalLines: allLines.length,
-    lines: selectedLines.map((lineText) => ({
-      spans: [{ text: lineText, fg: null, bg: null, flags: 0, width: lineText.length }],
-    })),
-  }
-}
-
-/**
- * Windows fallback: strips ANSI codes and returns plain text
- */
-function ptyToTextFallback(input: Buffer | Uint8Array | string): string {
-  const text = typeof input === "string" ? input : input.toString("utf-8")
-  return stripAnsi(text)
-}
-
-/**
- * Windows fallback: wraps plain text in pre tags
- */
-function ptyToHtmlFallback(input: Buffer | Uint8Array | string): string {
-  const text = typeof input === "string" ? input : input.toString("utf-8")
-  const plainText = stripAnsi(text)
-  // Escape HTML entities
-  const escaped = plainText
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-  return `<pre style="font-family: monospace;">${escaped}</pre>`
-}
 
 // =============================================================================
 // Public API
 // =============================================================================
 
 export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJsonOptions = {}): TerminalData {
-  // Fallback for Windows or if native module not available
   if (!lib) {
-    return ptyToJsonFallback(input, options)
+    throw new Error("Native module not available")
   }
 
   const { cols = 120, rows = 40, offset = 0, limit = 0 } = options
@@ -283,21 +225,11 @@ export interface PtyToTextOptions {
   rows?: number
 }
 
-/**
- * Strips ANSI escape codes from input and returns plain text.
- * Uses the terminal emulator to properly process escape sequences,
- * then outputs only the visible text content.
- *
- * Useful for cleaning terminal output before sending to LLMs or other text processors.
- */
 export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTextOptions = {}): string {
-  // Fallback for Windows or if native module not available
   if (!lib) {
-    return ptyToTextFallback(input)
+    throw new Error("Native module not available")
   }
 
-  // Large rows = less scrolling = fewer pages = cheaper
-  // cols affects line wrapping (high default to avoid unwanted wraps)
   const { cols = 500, rows = 256 } = options
 
   const inputStr = typeof input === "string" ? input : input.toString("utf-8")
@@ -314,46 +246,6 @@ export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTex
   const outLenPtr = ptr(outLenBuffer)
 
   const resultPtr = lib.symbols.ptyToText(inputPtr, inputBuffer.length, cols, rows, outLenPtr)
-
-  return readStringFromPointer(resultPtr, outLenBuffer)
-}
-
-export interface PtyToHtmlOptions {
-  cols?: number
-  rows?: number
-}
-
-/**
- * Converts terminal output with ANSI escape codes to styled HTML.
- * Uses the terminal emulator to properly process escape sequences,
- * then outputs HTML with inline styles for colors and text attributes.
- *
- * Useful for rendering terminal output in web pages or HTML documents.
- */
-export function ptyToHtml(input: Buffer | Uint8Array | string, options: PtyToHtmlOptions = {}): string {
-  // Fallback for Windows or if native module not available
-  if (!lib) {
-    return ptyToHtmlFallback(input)
-  }
-
-  // Large rows = less scrolling = fewer pages = cheaper
-  // cols affects line wrapping (high default to avoid unwanted wraps)
-  const { cols = 500, rows = 256 } = options
-
-  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
-
-  // Handle empty input
-  if (inputStr.length === 0) {
-    return ""
-  }
-
-  const inputBuffer = Buffer.from(inputStr)
-  const inputPtr = ptr(inputBuffer)
-
-  const outLenBuffer = new BigUint64Array(1)
-  const outLenPtr = ptr(outLenBuffer)
-
-  const resultPtr = lib.symbols.ptyToHtml(inputPtr, inputBuffer.length, cols, rows, outLenPtr)
 
   return readStringFromPointer(resultPtr, outLenBuffer)
 }

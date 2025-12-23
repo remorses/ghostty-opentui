@@ -1,28 +1,24 @@
 import { createCliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, useTerminalDimensions, useOnResize, extend } from "@opentui/react"
-import { useRef } from "react"
+import { useState, useRef } from "react"
 import { spawn, type IPty } from "bun-pty"
-import { GhosttyTerminalRenderable } from "../src/terminal-buffer"
+import { StatelessTerminalRenderable } from "../src/terminal-buffer"
 
-// Register the ghostty-terminal component
-extend({ "ghostty-terminal": GhosttyTerminalRenderable })
+extend({ "stateless-terminal": StatelessTerminalRenderable })
 
 function App() {
   const ptyRef = useRef<IPty | null>(null)
-  const terminalRef = useRef<GhosttyTerminalRenderable>(null)
+  const [ptyOutput, setPtyOutput] = useState("")
 
-  // Get terminal dimensions for the PTY
   const { width } = useTerminalDimensions()
   const cols = Math.max(40, width - 10)
   const rows = 20
 
-  // Resize PTY when terminal dimensions change
   useOnResize((newWidth) => {
     const newCols = Math.max(40, newWidth - 10)
     ptyRef.current?.resize(newCols, rows)
   })
 
-  // Initialize PTY on first render
   if (!ptyRef.current) {
     const pty = spawn("opencode", [], {
       name: "xterm-256color",
@@ -32,12 +28,7 @@ function App() {
     })
 
     pty.onData((data) => {
-      // Feed to persistent terminal
-      terminalRef.current?.feed(data)
-    })
-
-    pty.onExit(() => {
-      // Process exited
+      setPtyOutput((prev) => prev + data)
     })
 
     ptyRef.current = pty
@@ -64,102 +55,50 @@ function App() {
       <text fg="#8b949e">Terminal Buffer Limit Test - Press 'q' to quit</text>
       <text fg="#green">Testing limit parameter to truncate output and save CPU</text>
 
-      {/* Test 1: No limit (shows all 1000 lines - slow!) */}
       <box
         title="Test 1: No limit (1000 lines)"
         border
-        style={{
-          backgroundColor: "#2a1a1a",
-          borderColor: "#red",
-          padding: 1,
-          maxHeight: 10,
-        }}
+        style={{ backgroundColor: "#2a1a1a", borderColor: "#red", padding: 1, maxHeight: 10 }}
       >
-        <ghostty-terminal
-          ansi={hugeAnsi}
-          cols={80}
-          rows={1000}
-        />
+        <stateless-terminal ansi={hugeAnsi} cols={80} rows={1000} />
       </box>
-      <text fg="#666">⚠ Without limit, all 1000 lines are processed (CPU intensive)</text>
+      <text fg="#666">Without limit, all 1000 lines are processed (slow)</text>
 
-      {/* Test 2: limit=10 (only first 10 lines) */}
       <box
-        title="Test 2: limit=10 (first 10 lines only)"
+        title="Test 2: limit=10"
         border
-        style={{
-          backgroundColor: "#1a2a1a",
-          borderColor: "#green",
-          padding: 1,
-        }}
+        style={{ backgroundColor: "#1a2a1a", borderColor: "#green", padding: 1 }}
       >
-        <ghostty-terminal
-          ansi={hugeAnsi}
-          cols={80}
-          rows={1000}
-          limit={10}
-        />
+        <stateless-terminal ansi={hugeAnsi} cols={80} rows={1000} limit={10} />
       </box>
-      <text fg="#666">✓ With limit=10, only first 10 lines processed (fast!)</text>
+      <text fg="#666">With limit=10, only first 10 lines processed (fast)</text>
 
-      {/* Test 3: limit=3 */}
       <box
-        title="Test 3: limit=3 (preview mode)"
+        title="Test 3: limit=3"
         border
-        style={{
-          backgroundColor: "#1a1a2a",
-          borderColor: "#cyan",
-          padding: 1,
-        }}
+        style={{ backgroundColor: "#1a1a2a", borderColor: "#cyan", padding: 1 }}
       >
-        <ghostty-terminal
-          ansi={hugeAnsi}
-          cols={80}
-          rows={1000}
-          limit={3}
-        />
+        <stateless-terminal ansi={hugeAnsi} cols={80} rows={1000} limit={3} />
       </box>
-      <text fg="#666">✓ limit=3 for quick previews</text>
+      <text fg="#666">limit=3 for quick previews</text>
 
-      {/* Test 4: limit=1 */}
       <box
-        title="Test 4: limit=1 (first line only)"
+        title="Test 4: limit=1"
         border
-        style={{
-          backgroundColor: "#2a2a1a",
-          borderColor: "#yellow",
-          padding: 1,
-        }}
+        style={{ backgroundColor: "#2a2a1a", borderColor: "#yellow", padding: 1 }}
       >
-        <ghostty-terminal
-          ansi={hugeAnsi}
-          cols={80}
-          rows={1000}
-          limit={1}
-        />
+        <stateless-terminal ansi={hugeAnsi} cols={80} rows={1000} limit={1} />
       </box>
-      <text fg="#666">✓ limit=1 shows just the first line</text>
+      <text fg="#666">limit=1 shows just the first line</text>
 
-      {/* Test 5: Live opencode with limit=4 */}
       <box
-        title="Test 5: opencode PTY with limit"
+        title="Test 5: Live PTY via state"
         border
-        style={{
-          backgroundColor: "#1a2a2a",
-          borderColor: "#58a6ff",
-          padding: 1,
-          // height: 8,
-        }}
+        style={{ backgroundColor: "#1a2a2a", borderColor: "#58a6ff", padding: 1 }}
       >
-        <ghostty-terminal
-          ref={terminalRef}
-          persistent
-          cols={cols}
-          rows={rows}
-          limit={10}
-        />
+        <stateless-terminal ansi={ptyOutput} cols={cols} rows={rows} limit={10} trimEnd />
       </box>
-      <text fg="#666">✓ Live opencode output limited to n lines</text>
+      <text fg="#666">Live PTY output via React state (limit=10)</text>
 
       <text fg="#green" style={{ marginTop: 1 }}>Use limit for log previews to avoid processing huge files!</text>
     </box>

@@ -2,10 +2,10 @@ import { createCliRenderer, type CliRenderer } from "@opentui/core"
 import { createRoot, useKeyboard, useTerminalDimensions, useOnResize, useRenderer, extend } from "@opentui/react"
 import { useState, useRef, useEffect } from "react"
 import { spawn, type IPty } from "bun-pty"
-import { GhosttyTerminalRenderable } from "../src/terminal-buffer"
+import { TerminalRenderable } from "../src/terminal-buffer"
 
-// Register the ghostty-terminal component
-extend({ "ghostty-terminal": GhosttyTerminalRenderable })
+// Register the terminal component (for streaming/interactive use)
+extend({ "terminal": TerminalRenderable })
 
 // Control sequences we handle ourselves (Tab, Alt+1, Alt+2, Ctrl+Q)
 const CONTROL_SEQUENCES = new Set([
@@ -24,7 +24,7 @@ interface TerminalPanelProps {
   isSelected: boolean
   cols: number
   rows: number
-  terminalRef: React.RefObject<GhosttyTerminalRenderable>
+  terminalRef: React.RefObject<TerminalRenderable>
 }
 
 function TerminalPanel({ index, isSelected, cols, rows, terminalRef }: TerminalPanelProps) {
@@ -43,13 +43,11 @@ function TerminalPanel({ index, isSelected, cols, rows, terminalRef }: TerminalP
           opencode {index + 1} {isSelected ? "(active)" : ""}
         </text>
       </box>
-      <ghostty-terminal
+      <terminal
         ref={terminalRef}
-        persistent={true}
         cols={cols}
         rows={rows}
-        trimEnd={true}
-        showCursor={isSelected}
+        trimEnd
       />
     </box>
   )
@@ -59,8 +57,8 @@ function App() {
   const [selected, setSelected] = useState(0)
   const ptyRefs = useRef<(IPty | null)[]>([null, null])
   const terminalRefs = [
-    useRef<GhosttyTerminalRenderable>(null),
-    useRef<GhosttyTerminalRenderable>(null),
+    useRef<TerminalRenderable>(null),
+    useRef<TerminalRenderable>(null),
   ]
 
   // Get terminal dimensions
@@ -91,9 +89,7 @@ function App() {
 
       const termRef = terminalRefs[i]
       pty.onData((data) => {
-        if (termRef.current?.persistent) {
-          termRef.current.feed(data)
-        }
+        termRef.current?.feed(data)
       })
 
       pty.onExit(() => {
