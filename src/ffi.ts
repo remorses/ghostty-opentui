@@ -1,4 +1,4 @@
-import { dlopen, FFIType, ptr, toArrayBuffer, suffix } from "bun:ffi"
+import { dlopen, FFIType, ptr, toArrayBuffer, suffix, type Pointer } from "bun:ffi"
 import path from "path"
 import { platform, arch } from "os"
 import stripAnsi from "strip-ansi"
@@ -50,15 +50,15 @@ const symbols = {
 
   // Stateless functions
   ptyToJson: {
-    args: [FFIType.ptr, FFIType.usize, FFIType.u16, FFIType.u16, FFIType.usize, FFIType.usize, FFIType.ptr] as const,
+    args: [FFIType.ptr, "usize" as const, FFIType.u16, FFIType.u16, "usize" as const, "usize" as const, FFIType.ptr] as const,
     returns: FFIType.ptr,
   },
   ptyToText: {
-    args: [FFIType.ptr, FFIType.usize, FFIType.u16, FFIType.u16, FFIType.ptr] as const,
+    args: [FFIType.ptr, "usize" as const, FFIType.u16, FFIType.u16, FFIType.ptr] as const,
     returns: FFIType.ptr,
   },
   ptyToHtml: {
-    args: [FFIType.ptr, FFIType.usize, FFIType.u16, FFIType.u16, FFIType.ptr] as const,
+    args: [FFIType.ptr, "usize" as const, FFIType.u16, FFIType.u16, FFIType.ptr] as const,
     returns: FFIType.ptr,
   },
 
@@ -72,7 +72,7 @@ const symbols = {
     returns: FFIType.void,
   },
   feedTerminal: {
-    args: [FFIType.u32, FFIType.ptr, FFIType.usize] as const,
+    args: [FFIType.u32, FFIType.ptr, "usize" as const] as const,
     returns: FFIType.bool,
   },
   resizeTerminal: {
@@ -147,7 +147,7 @@ export interface PtyToJsonOptions {
 // Helper Functions
 // =============================================================================
 
-function readStringFromPointer(resultPtr: number | null, outLenBuffer: BigUint64Array): string {
+function readStringFromPointer(resultPtr: Pointer | null, outLenBuffer: BigUint64Array): string {
   if (!resultPtr) {
     throw new Error("Native function returned null")
   }
