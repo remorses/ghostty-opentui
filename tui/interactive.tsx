@@ -176,6 +176,7 @@ function App() {
           cols={cols}
           rows={rows}
           trimEnd
+          showCursor
         />
       </box>
     </box>

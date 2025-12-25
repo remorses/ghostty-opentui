@@ -151,6 +151,32 @@ export interface CursorStyle {
 }
 
 /**
+ * Creates a cursor-styled chunk.
+ */
+function makeCursorChunk(
+  char: string,
+  style: "block" | "underline",
+  original?: TextChunk,
+): TextChunk {
+  if (style === "block") {
+    return {
+      __isChunk: true,
+      text: char,
+      fg: original?.bg || RGBA.fromHex("#1e1e1e"),
+      bg: original?.fg || DEFAULT_FG,
+      attributes: original?.attributes ?? 0,
+    }
+  }
+  return {
+    __isChunk: true,
+    text: char,
+    fg: original?.fg || DEFAULT_FG,
+    bg: original?.bg,
+    attributes: (original?.attributes ?? 0) | TextAttributes.UNDERLINE,
+  }
+}
+
+/**
  * Applies cursor styling to chunks for a specific line.
  * For 'block' style, inverts fg/bg colors at cursor position.
  * For 'underline' style, adds underline attribute.
@@ -160,86 +186,40 @@ function applyCursorToLine(
   cursorX: number,
   cursorStyle: "block" | "underline",
 ): TextChunk[] {
+  const totalLen = chunks.reduce((sum, c) => sum + c.text.length, 0)
+
+  // Cursor beyond line content - append cursor at end
+  if (cursorX >= totalLen) {
+    return [...chunks, makeCursorChunk(" ", cursorStyle)]
+  }
+
+  // Find and split the chunk containing the cursor
   const result: TextChunk[] = []
   let col = 0
 
   for (const chunk of chunks) {
-    const chunkStart = col
     const chunkEnd = col + chunk.text.length
 
-    // Check if cursor is within this chunk
-    if (cursorX >= chunkStart && cursorX < chunkEnd) {
-      const posInChunk = cursorX - chunkStart
+    if (cursorX >= col && cursorX < chunkEnd) {
+      const pos = cursorX - col
 
       // Text before cursor
-      if (posInChunk > 0) {
-        result.push({
-          __isChunk: true,
-          text: chunk.text.slice(0, posInChunk),
-          fg: chunk.fg,
-          bg: chunk.bg,
-          attributes: chunk.attributes,
-        })
+      if (pos > 0) {
+        result.push({ ...chunk, text: chunk.text.slice(0, pos) })
       }
 
-      // Character at cursor (or space if at end)
-      const cursorChar = chunk.text[posInChunk] || " "
-      if (cursorStyle === "block") {
-        // Invert colors for block cursor
-        result.push({
-          __isChunk: true,
-          text: cursorChar,
-          fg: chunk.bg || RGBA.fromHex("#1e1e1e"),
-          bg: chunk.fg || DEFAULT_FG,
-          attributes: chunk.attributes,
-        })
-      } else {
-        // Underline cursor
-        result.push({
-          __isChunk: true,
-          text: cursorChar,
-          fg: chunk.fg,
-          bg: chunk.bg,
-          attributes: (chunk.attributes ?? 0) | TextAttributes.UNDERLINE,
-        })
-      }
+      // Cursor character
+      result.push(makeCursorChunk(chunk.text[pos], cursorStyle, chunk))
 
       // Text after cursor
-      if (posInChunk + 1 < chunk.text.length) {
-        result.push({
-          __isChunk: true,
-          text: chunk.text.slice(posInChunk + 1),
-          fg: chunk.fg,
-          bg: chunk.bg,
-          attributes: chunk.attributes,
-        })
+      if (pos + 1 < chunk.text.length) {
+        result.push({ ...chunk, text: chunk.text.slice(pos + 1) })
       }
     } else {
       result.push(chunk)
     }
 
     col = chunkEnd
-  }
-
-  // If cursor is beyond line content, add a cursor block at end
-  if (cursorX >= col) {
-    if (cursorStyle === "block") {
-      result.push({
-        __isChunk: true,
-        text: " ",
-        fg: RGBA.fromHex("#1e1e1e"),
-        bg: DEFAULT_FG,
-        attributes: 0,
-      })
-    } else {
-      result.push({
-        __isChunk: true,
-        text: " ",
-        fg: DEFAULT_FG,
-        bg: undefined,
-        attributes: TextAttributes.UNDERLINE,
-      })
-    }
   }
 
   return result
