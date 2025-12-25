@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.3.11
+
+- Remove ghostty submodule, fetch as zig dependency instead
+
 ## 1.3.10
 
 - Fixed Windows binary - now included and tested via Node.js (Bun has a bug loading .node on Windows)

@@ -3,7 +3,10 @@
     .version = "1.3.0",
     .fingerprint = 0x6349c91adc1b4904,
     .dependencies = .{
-        .ghostty = .{ .path = "deps/ghostty" },
+        .ghostty = .{
+            .url = "git+https://github.com/ghostty-org/ghostty.git?ref=HEAD#d9529947a40e16f8e7efd8a1f680d01ff99f213b",
+            .hash = "ghostty-1.3.0-dev-5UdBCw48PQQf5CPUefWgaNNjp--V0UlOtQ9TRz0c0ItK",
+        },
         .napigen = .{
             .url = "git+https://github.com/cztomsik/napigen?ref=main#bc2c8259d95be774847e60fce9bfc203ab623b30",
             .hash = "napigen-0.1.0-YpiIumJ9AAA4yVKISHKfN_2H0u7-su18jRHSSq_UUTNN",
