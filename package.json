@@ -55,7 +55,7 @@
     "@opentui/react": "0.1.67",
     "@types/node": "^25.0.3",
     "@types/react": "^19.2.7",
-    "bun-pty": "^0.4.2",
+    "bun-pty": "^0.4.3",
     "bun-types": "^1.3.5",
     "react": "^19.2.3",
     "typescript": "^5.9.3",
