@@ -51,11 +51,11 @@
     }
   },
   "devDependencies": {
-    "@opentui/core": "^0.1.68",
-    "@opentui/react": "0.1.68",
-    "@types/node": "^25.0.3",
-    "@types/react": "^19.2.7",
-    "bun-pty": "0.4.6",
+    "@opentui/core": "^0.1.72",
+    "@opentui/react": "0.1.72",
+    "@types/node": "^25.0.6",
+    "@types/react": "^19.2.8",
+    "bun-pty": "0.4.7",
     "bun-types": "^1.3.5",
     "react": "^19.2.3",
     "typescript": "^5.9.3",
