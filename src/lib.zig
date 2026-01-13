@@ -180,6 +180,17 @@ pub fn writeJsonOutput(
         try writer.writeByte('[');
 
         const cells = pin.cells(.all);
+
+        // First pass: find the last column with actual content (non-null codepoint)
+        // This allows us to trim trailing spaces while preserving internal spaces (e.g., from tabs)
+        var last_content_col: usize = 0;
+        for (cells, 0..) |*cell, col_idx| {
+            if (cell.wide == .spacer_tail) continue;
+            if (cell.codepoint() != 0) {
+                last_content_col = col_idx + 1; // +1 because we want to include this column
+            }
+        }
+
         var span_start: usize = 0;
         var span_len: usize = 0;
         var current_style: ?CellStyle = null;
@@ -188,28 +199,13 @@ pub fn writeJsonOutput(
 
         for (cells, 0..) |*cell, col_idx| {
             if (cell.wide == .spacer_tail) continue;
+            // Stop at the last content column (trim trailing nulls/spaces)
+            if (col_idx >= last_content_col) break;
 
-            const cp = cell.codepoint();
-            const is_null = cp == 0;
-
-            if (is_null) {
-                if (text_len > 0) {
-                    if (span_idx > 0) try writer.writeByte(',');
-                    try writer.writeByte('[');
-                    try writeJsonString(writer, text_buf[0..text_len]);
-                    try writer.writeByte(',');
-                    try writeColor(writer, current_style.?.fg);
-                    try writer.writeByte(',');
-                    try writeColor(writer, current_style.?.bg);
-                    try writer.print(",{},{}", .{ current_style.?.flags.toInt(), span_len });
-                    try writer.writeByte(']');
-                    span_idx += 1;
-                    text_len = 0;
-                    span_len = 0;
-                }
-                current_style = null;
-                continue;
-            }
+            const raw_cp = cell.codepoint();
+            // Treat null cells as spaces (important for tab expansion)
+            // Null cells occur when cursor moves (e.g., tab) without writing characters
+            const cp: u32 = if (raw_cp == 0) ' ' else raw_cp;
 
             const style = getStyleFromCell(cell, pin, palette, terminal_bg);
             const style_changed = if (current_style) |cs| !cs.eql(style) else true;

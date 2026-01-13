@@ -86,6 +86,54 @@ describe("ptyToJson", () => {
     expect(result.rows).toBe(50)
   })
 
+  it("should handle tab expansion correctly", () => {
+    // Tab character followed by colored text
+    // Tab should expand to spaces and be included in the span, not break it
+    const input = "a\tb\tc"
+    const result = ptyToJson(input, { cols: 80, rows: 24 })
+
+    // The first line should have spans with expanded tabs as spaces
+    expect(result.lines[0].spans.map(s => s.text)).toMatchInlineSnapshot(`
+[
+  "a       b       c",
+]
+`)
+  })
+
+  it("should handle tabs with ANSI colors", () => {
+    // Colored text with tabs: red "a", tab, green "b", tab, blue "c"
+    const input = "\x1b[31ma\x1b[0m\t\x1b[32mb\x1b[0m\t\x1b[33mc\x1b[0m"
+    const result = ptyToJson(input, { cols: 80, rows: 24 })
+
+    // Tabs should expand to spaces within the spans
+    // Each colored character plus its following tab spaces should form a span
+    const spans = result.lines[0].spans
+    expect(spans.map(s => ({ text: s.text, fg: s.fg }))).toMatchInlineSnapshot(`
+[
+  {
+    "fg": "#cc6666",
+    "text": "a",
+  },
+  {
+    "fg": null,
+    "text": "       ",
+  },
+  {
+    "fg": "#b5bd68",
+    "text": "b",
+  },
+  {
+    "fg": null,
+    "text": "       ",
+  },
+  {
+    "fg": "#f0c674",
+    "text": "c",
+  },
+]
+`)
+  })
+
   it("should handle limit parameter efficiently", () => {
     // Generate 1000 lines
     const lines = Array.from({ length: 1000 }, (_, i) => `Line ${i + 1}`).join("\n")
