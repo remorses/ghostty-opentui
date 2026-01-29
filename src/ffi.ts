@@ -19,6 +19,7 @@ export interface TerminalData {
   cols: number
   rows: number
   cursor: [number, number]
+  cursorVisible: boolean
   offset: number
   totalLines: number
   lines: TerminalLine[]
@@ -50,6 +51,7 @@ function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJs
     cols,
     rows,
     cursor: [0, selectedLines.length],
+    cursorVisible: true,
     offset,
     totalLines: allLines.length,
     lines: selectedLines.map((lineText) => ({
@@ -74,6 +76,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
       cols,
       rows,
       cursor: [0, 0],
+      cursorVisible: true,
       offset,
       totalLines: 0,
       lines: [],
@@ -86,6 +89,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
     cols: number
     rows: number
     cursor: [number, number]
+    cursorVisible: boolean
     offset: number
     totalLines: number
     lines: Array<Array<[string, string | null, string | null, number, number]>>
@@ -95,6 +99,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
     cols: raw.cols,
     rows: raw.rows,
     cursor: raw.cursor,
+    cursorVisible: raw.cursorVisible,
     offset: raw.offset,
     totalLines: raw.totalLines,
     lines: raw.lines.map((line) => ({
@@ -321,6 +326,7 @@ export class PersistentTerminal {
       cols: number
       rows: number
       cursor: [number, number]
+      cursorVisible: boolean
       offset: number
       totalLines: number
       lines: Array<Array<[string, string | null, string | null, number, number]>>
@@ -330,6 +336,7 @@ export class PersistentTerminal {
       cols: raw.cols,
       rows: raw.rows,
       cursor: raw.cursor,
+      cursorVisible: raw.cursorVisible,
       offset: raw.offset,
       totalLines: raw.totalLines,
       lines: raw.lines.map((line) => ({

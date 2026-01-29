@@ -155,9 +155,13 @@ pub fn writeJsonOutput(
 
     const total_lines = countLines(screen);
 
+    // Check if cursor is visible (DECTCEM mode - DEC text cursor enable mode)
+    const cursor_visible = t.modes.get(.cursor_visible);
+    
     try writer.writeAll("{");
     try writer.print("\"cols\":{},\"rows\":{},", .{ screen.pages.cols, screen.pages.rows });
     try writer.print("\"cursor\":[{},{}],", .{ screen.cursor.x, screen.cursor.y });
+    try writer.print("\"cursorVisible\":{},", .{ cursor_visible });
     try writer.print("\"offset\":{},\"totalLines\":{},", .{ offset, total_lines });
     try writer.writeAll("\"lines\":[");
 
