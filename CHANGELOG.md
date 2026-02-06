@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.13
+
+- Fix cursor rendered on wrong line when scrollback exists in persistent mode (#4)
+  - `data.cursor[1]` is screen-relative but was used directly as line index into `data.lines`
+  - Now adjusted with `(totalLines - rows) + cursor[1] - offset`
+
 ## 1.3.11
 
 - Remove ghostty submodule, fetch as zig dependency instead
