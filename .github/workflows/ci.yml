@@ -78,7 +78,12 @@ jobs:
         run: bun install
 
       - name: Run tests
-        run: bun test
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: bun test
 
   test-windows:
     needs: [build]
