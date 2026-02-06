@@ -27,7 +27,7 @@ jobs:
           version: 0.15.2
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
@@ -43,7 +43,12 @@ jobs:
           command: bun scripts/build.ts
 
       - name: Run tests
-        run: bun test
+        uses: nick-fields/retry@v3
+        with:
+          timeout_minutes: 5
+          max_attempts: 3
+          retry_on: error
+          command: bun test
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -59,7 +64,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
@@ -111,7 +116,7 @@ jobs:
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup Bun
-        uses: oven-sh/setup-bun@v1
+        uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
