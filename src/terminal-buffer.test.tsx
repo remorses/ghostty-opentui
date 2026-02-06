@@ -623,6 +623,66 @@ drwx------  71 user  staff  2272 Nov 26 19:44 ..
       expect(text).toContain("Colored Text")
     })
 
+    it("should render cursor on correct line when scrollback exists", async () => {
+      // Issue #4: cursor rendered on wrong line when scrollback exists
+      // When totalLines > rows, cursor Y is screen-relative but was used as
+      // a direct index into data.lines without adjusting for scrollback offset.
+      // The fix adjusts Y: (totalLines - rows) + cursor[1] - offset
+      const ref = { current: null as GhosttyTerminalRenderable | null }
+      const rows = 5
+      const cols = 40
+      
+      const { renderOnce, captureCharFrame } = await testRender(
+        <ghostty-terminal 
+          ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+          cols={cols} 
+          rows={rows} 
+          persistent 
+          showCursor
+          style={{ width: cols, height: rows }} 
+        />,
+        { width: cols, height: rows }
+      )
+      
+      await renderOnce()
+      
+      // Feed more lines than rows to create scrollback
+      // 8 lines + "final" in a 5-row terminal = scrollback exists
+      for (let i = 1; i <= 8; i++) {
+        ref.current?.feed(`Line ${i}\n`)
+      }
+      ref.current?.feed("final")
+      
+      // Verify scrollback exists
+      const data = ref.current!['_persistentTerminal']!.getJson()
+      expect(data.totalLines).toBeGreaterThan(rows)
+      
+      const cursor = ref.current!.getCursor()
+      expect(cursor[0]).toBe(5) // x = after "final"
+
+      // cursor[1] is screen-relative, NOT the correct line index
+      const screenY = data.cursor[1]
+      const adjustedY = Math.max(0, (data.totalLines - data.rows) + screenY - data.offset)
+      
+      // Find the "final" line in data.lines
+      const finalLineIndex = data.lines.findIndex(line => 
+        line.spans.some(span => span.text.includes("final"))
+      )
+      expect(finalLineIndex).toBeGreaterThanOrEqual(0)
+      
+      // Screen-relative Y does NOT match the correct line
+      expect(screenY).not.toBe(finalLineIndex)
+      // Adjusted Y matches the correct line
+      expect(adjustedY).toBe(finalLineIndex)
+      
+      // The line at screenY (buggy) does not contain "final"
+      const lineAtScreenY = data.lines[screenY].spans.map(s => s.text).join('')
+      expect(lineAtScreenY).not.toContain("final")
+      // The line at adjustedY (fixed) does contain "final"
+      const lineAtAdjustedY = data.lines[adjustedY].spans.map(s => s.text).join('')
+      expect(lineAtAdjustedY).toContain("final")
+    })
+
     it("should throw when using persistent methods in stateless mode", async () => {
       const ref = { current: null as GhosttyTerminalRenderable | null }
       

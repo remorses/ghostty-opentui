@@ -566,9 +566,11 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       }
       
       // Build cursor info if enabled
+      // data.cursor[1] is screen-relative (0..rows-1), but data.lines may include
+      // scrollback lines. Adjust Y to index into data.lines correctly. (issue #4)
       const cursor = this._showCursor ? {
         x: data.cursor[0],
-        y: data.cursor[1],
+        y: Math.max(0, (data.totalLines - data.rows) + data.cursor[1] - data.offset),
         style: this._cursorStyle,
       } : undefined
       
