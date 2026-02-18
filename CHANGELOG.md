@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.4.0
+
+- **Terminal-to-image rendering** via new `ghostty-opentui/image` export
+  - `renderTerminalToImage(data, options)` — converts `TerminalData` to PNG/WebP/JPEG buffer
+  - `renderTerminalToPaginatedImages(data, options)` — splits long content into multiple images
+  - Uses `@takumi-rs/core` (Rust CSS renderer) with bundled JetBrains Mono Nerd font
+  - Fixed-width character grid: each span snaps to `span.width * charWidth` pixels, preventing glyph drift with box-drawing and block characters
+  - Configurable font size (default 14px), line height, padding, theme colors, output format
+  - Auto-calculates image width from terminal columns
+- **Testdata fixes**: restored missing ESC bytes in 8 `.log` files, fixed table header alignment
+- **Bug fix**: `trimTrailingEmptyLines` now preserves lines with background colors or INVERSE flag (TUI status bars)
+- `@takumi-rs/core` and `@takumi-rs/helpers` added as optional dependencies
+- `public/jetbrains-mono-nerd.ttf` bundled and shipped with package
+
 ## 1.3.13
 
 - Fix cursor rendered on wrong line when scrollback exists in persistent mode (#4)

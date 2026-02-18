@@ -211,6 +211,21 @@ use gitchamber to read the .md files using curl
 
 you can read more examples of opentui react code using gitchamber by listing and reading files from the correct endpoint: https://gitchamber.com/repos/sst/opentui/main/files?glob=packages/react/examples/**
 
+## publishing
+
+To publish a new version:
+
+1. Bump version in `package.json` (never do major bumps)
+2. Update `CHANGELOG.md` with the new version and changes
+3. Commit: `git commit -am "bump to X.Y.Z, update changelog"`
+4. Push to main: `git push origin main`
+5. CI automatically builds, tests, and publishes to npm on push to main
+6. Create a GitHub release: `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
+7. Wait for CI: `gh run watch` or `gh pr checks --watch`
+
+Do NOT publish locally. The `prepublishOnly` script blocks local `npm publish`.
+CI handles cross-compilation of native binaries for all platforms before publishing.
+
 ## changelog
 
 after any meaningful change update CHANGELOG.md with the version number and the list of changes made. in concise bullet points
