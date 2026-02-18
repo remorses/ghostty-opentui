@@ -165,15 +165,20 @@ function calculateAutoWidth(
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Convert a TerminalSpan to a takumi text node.
- * Handles: fg/bg colors, bold, italic, faint, inverse.
+ * Convert a TerminalSpan to a fixed-width container holding a text node.
+ * The container width is exactly span.width * charWidth, forcing a character
+ * grid layout so columns align even if the font renders some glyphs
+ * (box-drawing, block elements) at slightly different advance widths.
  */
-function spanToTextNode(
+function spanToNode(
   span: TerminalSpan,
-  text: typeof import("@takumi-rs/helpers").text,
+  helpers: typeof import("@takumi-rs/helpers"),
   theme: ImageTheme,
+  charWidth: number,
 ) {
-  const style: Record<string, string | number> = {
+  const { container, text } = helpers
+
+  const textStyle: Record<string, string | number> = {
     display: "inline",
     flexShrink: 0,
   }
@@ -189,22 +194,34 @@ function spanToTextNode(
   }
 
   if (fg) {
-    style.color = fg
-  }
-  if (bg) {
-    style.backgroundColor = bg
+    textStyle.color = fg
   }
   if (span.flags & StyleFlags.BOLD) {
-    style.fontWeight = "bold"
+    textStyle.fontWeight = "bold"
   }
   if (span.flags & StyleFlags.ITALIC) {
-    style.fontStyle = "italic"
+    textStyle.fontStyle = "italic"
   }
   if (span.flags & StyleFlags.FAINT) {
-    style.opacity = 0.5
+    textStyle.opacity = 0.5
   }
 
-  return text(span.text, style)
+  // Wrap text in a fixed-width container to enforce grid alignment
+  const containerStyle: Record<string, string | number> = {
+    display: "flex",
+    width: span.width * charWidth,
+    height: "100%",
+    overflow: "hidden",
+    flexShrink: 0,
+  }
+  if (bg) {
+    containerStyle.backgroundColor = bg
+  }
+
+  return container({
+    style: containerStyle,
+    children: [text(span.text, textStyle)],
+  })
 }
 
 /**
@@ -219,20 +236,24 @@ function lineToContainerNode(
     textColor: string
     lineHeight: number
     fontSize: number
+    charWidth: number
     theme: ImageTheme
     width?: number
   },
 ) {
   const { container, text } = helpers
-  const { backgroundColor, lineHeight, fontSize, theme, width } = options
+  const { backgroundColor, lineHeight, fontSize, charWidth, theme, width } = options
 
   const lineHeightPx = Math.round(fontSize * lineHeight)
 
-  // Convert spans to text nodes
-  let textChildren = line.spans.map((span) => spanToTextNode(span, text, theme))
-  if (textChildren.length === 0) {
+  // Convert spans to fixed-width grid cells
+  let spanChildren = line.spans.map((span) => spanToNode(span, helpers, theme, charWidth))
+  if (spanChildren.length === 0) {
     // Empty line: invisible character to maintain height
-    textChildren = [text("m", { color: backgroundColor })]
+    spanChildren = [container({
+      style: { display: "flex", width: 1, height: "100%", flexShrink: 0 },
+      children: [text("m", { color: backgroundColor })],
+    })]
   }
 
   // Get line background from last span (for things like diff coloring that
@@ -270,7 +291,7 @@ function lineToContainerNode(
       backgroundColor: lineBackground,
       overflow: "hidden",
     },
-    children: [...textChildren, spacer],
+    children: [...spanChildren, spacer],
   })
 }
 
@@ -294,6 +315,7 @@ function frameToRootNode(
   } = options
 
   const contentWidth = imageWidth - paddingX * 2
+  const charWidth = fontSize * CHAR_WIDTH_FACTOR
 
   const lineNodes = lines.map((line) =>
     lineToContainerNode(line, helpers, {
@@ -301,6 +323,7 @@ function frameToRootNode(
       textColor: theme.text,
       lineHeight,
       fontSize,
+      charWidth,
       theme,
       width: contentWidth,
     }),
