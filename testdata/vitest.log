@@ -1,22 +1,22 @@
-[1;32m ✓[0m [90msrc/utils/[0m[1mstring.test.ts[0m [90m(5 tests)[0m [32m12ms[0m
-   [32m✓[0m capitalize works correctly
-   [32m✓[0m truncate handles edge cases
-   [32m✓[0m slugify removes special chars
-   [32m✓[0m camelCase converts properly
-   [32m✓[0m kebabCase converts properly
+[1;32m ✓[0m [90msrc/utils/[0m[1mstring.test.ts[0m [90m(5 tests)[0m [32m12ms[0m
+   [32m✓[0m capitalize works correctly
+   [32m✓[0m truncate handles edge cases
+   [32m✓[0m slugify removes special chars
+   [32m✓[0m camelCase converts properly
+   [32m✓[0m kebabCase converts properly
 
-[1;32m ✓[0m [90msrc/utils/[0m[1mmath.test.ts[0m [90m(3 tests)[0m [32m8ms[0m
-   [32m✓[0m clamp restricts values
-   [32m✓[0m lerp interpolates correctly
-   [32m✓[0m round handles decimals
+[1;32m ✓[0m [90msrc/utils/[0m[1mmath.test.ts[0m [90m(3 tests)[0m [32m8ms[0m
+   [32m✓[0m clamp restricts values
+   [32m✓[0m lerp interpolates correctly
+   [32m✓[0m round handles decimals
 
-[1;31m ✗[0m [90msrc/api/[0m[1mfetch.test.ts[0m [90m(4 tests)[0m [31m156ms[0m
-   [32m✓[0m GET request works
-   [32m✓[0m POST request works
-   [31m✗[0m [1;31mhandles timeout correctly[0m
-   [90m   → expected [32m"timeout"[90m but got [31m"error"[0m
-   [32m✓[0m retries on failure
+[1;31m ✗[0m [90msrc/api/[0m[1mfetch.test.ts[0m [90m(4 tests)[0m [31m156ms[0m
+   [32m✓[0m GET request works
+   [32m✓[0m POST request works
+   [31m✗[0m [1;31mhandles timeout correctly[0m
+   [90m   → expected [32m"timeout"[90m but got [31m"error"[0m
+   [32m✓[0m retries on failure
 
-[1m Test Files [0m [31m1 failed[0m [90m|[0m [32m2 passed[0m [90m(3)[0m
-[1m      Tests [0m [31m1 failed[0m [90m|[0m [32m11 passed[0m [90m(12)[0m
-[1m   Duration [0m 176ms
+[1m Test Files [0m [31m1 failed[0m [90m|[0m [32m2 passed[0m [90m(3)[0m
+[1m      Tests [0m [31m1 failed[0m [90m|[0m [32m11 passed[0m [90m(12)[0m
+[1m   Duration [0m 176ms

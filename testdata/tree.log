@@ -1,11 +1,11 @@
-[1;34m📁 project[0m
-[34m├──[0m [1;33m📁 src[0m
-[34m│   ├──[0m [32mindex.ts[0m
-[34m│   ├──[0m [32mutils.ts[0m
-[34m│   └──[0m [1;33m📁 components[0m
-[34m│       ├──[0m [36mButton.tsx[0m
-[34m│       └──[0m [36mInput.tsx[0m
-[34m├──[0m [1;33m📁 tests[0m
-[34m│   └──[0m [35mindex.test.ts[0m
-[34m├──[0m [90mpackage.json[0m
-[34m└──[0m [90mtsconfig.json[0m
+[1;34m📁 project[0m
+[34m├──[0m [1;33m📁 src[0m
+[34m│   ├──[0m [32mindex.ts[0m
+[34m│   ├──[0m [32mutils.ts[0m
+[34m│   └──[0m [1;33m📁 components[0m
+[34m│       ├──[0m [36mButton.tsx[0m
+[34m│       └──[0m [36mInput.tsx[0m
+[34m├──[0m [1;33m📁 tests[0m
+[34m│   └──[0m [35mindex.test.ts[0m
+[34m├──[0m [90mpackage.json[0m
+[34m└──[0m [90mtsconfig.json[0m

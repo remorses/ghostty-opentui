@@ -1,14 +1,14 @@
-[1mdiff --git a/src/main.ts b/src/main.ts[0m
-[1mindex 8a3b2c1..f4e5d6a 100644[0m
-[1m--- a/src/main.ts[0m
-[1m+++ b/src/main.ts[0m
-[36m@@ -15,7 +15,9 @@[0m function processData(input: string) {
+[1mdiff --git a/src/main.ts b/src/main.ts[0m
+[1mindex 8a3b2c1..f4e5d6a 100644[0m
+[1m--- a/src/main.ts[0m
+[1m+++ b/src/main.ts[0m
+[36m@@ -15,7 +15,9 @@[0m function processData(input: string) {
    const parsed = JSON.parse(input);
-[31m-  return parsed.data;[0m
-[32m+  if (!parsed.data) {[0m
-[32m+    throw new Error('Invalid data format');[0m
-[32m+  }[0m
-[32m+  return parsed.data.map(item => item.value);[0m
+[31m-  return parsed.data;[0m
+[32m+  if (!parsed.data) {[0m
+[32m+    throw new Error('Invalid data format');[0m
+[32m+  }[0m
+[32m+  return parsed.data.map(item => item.value);[0m
  }
 
  export function main() {

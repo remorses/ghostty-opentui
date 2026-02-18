@@ -29,11 +29,18 @@
       "bun": "./src/terminal-buffer.ts",
       "require": "./dist/terminal-buffer.js",
       "default": "./dist/terminal-buffer.js"
+    },
+    "./image": {
+      "types": "./dist/image.d.ts",
+      "bun": "./src/image.ts",
+      "require": "./dist/image.js",
+      "default": "./dist/image.js"
     }
   },
   "files": [
     "dist",
-    "src"
+    "src",
+    "public"
   ],
   "keywords": ["terminal", "pty", "vt100", "ansi", "ghostty", "opentui", "napi"],
   "author": "remorses",
@@ -60,6 +67,10 @@
     "react": "^19.2.3",
     "typescript": "^5.9.3",
     "vitest": "^4.0.16"
+  },
+  "optionalDependencies": {
+    "@takumi-rs/core": "^0.65.0",
+    "@takumi-rs/helpers": "^0.65.0"
   },
   "dependencies": {
     "strip-ansi": "^7.1.2"

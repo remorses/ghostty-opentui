@@ -1,19 +1,19 @@
-[1mOn branch [36mmain[0m
-Your branch is [32mahead[0m of [36m'origin/main'[0m by [1m3[0m commits.
+[1mOn branch [36mmain[0m
+Your branch is [32mahead[0m of [36m'origin/main'[0m by [1m3[0m commits.
   (use "git push" to publish your local commits)
 
-[1mChanges to be committed:[0m
-  [90m(use "git restore --staged <file>..." to unstage)[0m
-	[32mnew file:   src/components/Modal.tsx[0m
-	[32mmodified:   src/index.ts[0m
+[1mChanges to be committed:[0m
+  [90m(use "git restore --staged <file>..." to unstage)[0m
+	[32mnew file:   src/components/Modal.tsx[0m
+	[32mmodified:   src/index.ts[0m
 
-[1mChanges not staged for commit:[0m
-  [90m(use "git add <file>..." to update what will be committed)[0m
-  [90m(use "git restore <file>..." to discard changes)[0m
-	[31mmodified:   package.json[0m
-	[31mmodified:   src/utils/helpers.ts[0m
+[1mChanges not staged for commit:[0m
+  [90m(use "git add <file>..." to update what will be committed)[0m
+  [90m(use "git restore <file>..." to discard changes)[0m
+	[31mmodified:   package.json[0m
+	[31mmodified:   src/utils/helpers.ts[0m
 
-[1mUntracked files:[0m
-  [90m(use "git add <file>..." to include in what will be committed)[0m
-	[31m.env.local[0m
-	[31mtmp/[0m
+[1mUntracked files:[0m
+  [90m(use "git add <file>..." to include in what will be committed)[0m
+	[31m.env.local[0m
+	[31mtmp/[0m
