@@ -138,7 +138,13 @@ function getBundledFontPath(): string {
 /** Check if a line is empty (no spans or only whitespace) */
 function isLineEmpty(line: TerminalLine): boolean {
   if (line.spans.length === 0) return true
-  return line.spans.every((span) => span.text.trim() === "")
+  return line.spans.every((span) => {
+    const textEmpty = span.text.trim() === ""
+    const noBg = span.bg === null
+    const noInverse = (span.flags & StyleFlags.INVERSE) === 0
+    // If text is empty, we must ensure there's no visual background
+    return textEmpty && noBg && noInverse
+  })
 }
 
 /** Trim empty lines from end of lines array */

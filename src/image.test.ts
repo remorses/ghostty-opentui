@@ -412,4 +412,16 @@ describe("edge cases", () => {
     expect(isPng(image)).toBe(true)
     saveImage("combined-styles", image)
   })
+
+  it("empty lines with background — should not be trimmed", async () => {
+    const ansi = "Line 1\nLine 2\n\x1b[44m          \x1b[0m"
+    const data = ptyToJson(ansi, { cols: 20, rows: 3 })
+    const image = await renderTerminalToImage(data)
+    
+    // We expect 3 lines visible
+    expect(data.lines.length).toBe(3)
+    // Image should be generated successfully
+    expect(isPng(image)).toBe(true)
+    saveImage("bg-lines-preserved", image)
+  })
 })
