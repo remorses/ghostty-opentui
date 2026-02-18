@@ -9,6 +9,7 @@ Fast ANSI/VT terminal parser powered by [Ghostty's](https://github.com/ghostty-o
 - **TUI Viewer** - Interactive terminal viewer built with [opentui](https://github.com/sst/opentui)
 - **JSON output** - Compact format with merged spans for rendering
 - **Plain text output** - Strip ANSI codes for LLM/text processing
+- **Screenshot rendering** - Export terminal output to PNG/JPEG/WebP images via [takumi-rs](https://github.com/anthropics/takumi-rs)
 - **N-API** - Native Node.js addon using [napigen](https://github.com/cztomsik/napigen) for seamless integration
 
 ## Installation
@@ -262,6 +263,60 @@ const styledText = terminalDataToStyledText(data, highlights)
 // styledText.chunks contains TextChunk[] with highlights applied
 ```
 
+### Screenshot / Image Rendering
+
+Render terminal output to PNG, JPEG, or WebP images using [takumi-rs](https://github.com/anthropics/takumi-rs). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment.
+
+```typescript
+import { ptyToJson } from "ghostty-opentui"
+import { renderTerminalToImage } from "ghostty-opentui/image"
+
+const data = ptyToJson("\x1b[32mHello\x1b[0m World", { cols: 80 })
+const png = await renderTerminalToImage(data, { format: "png" })
+await Bun.write("screenshot.png", png)
+```
+
+Custom theme and font size:
+
+```typescript
+const image = await renderTerminalToImage(data, {
+  format: "jpeg",
+  fontSize: 16,
+  lineHeight: 1.4,
+  paddingX: 32,
+  paddingY: 24,
+  theme: { background: "#282c34", text: "#abb2bf" },
+  quality: 95,
+})
+```
+
+For large outputs, paginate into multiple images:
+
+```typescript
+import { renderTerminalToPaginatedImages } from "ghostty-opentui/image"
+
+const result = await renderTerminalToPaginatedImages(data, {
+  maxLinesPerImage: 70,
+  format: "png",
+})
+// result.images   - Buffer[]
+// result.paths    - temp file paths
+// result.imageCount
+```
+
+#### Image rendering performance
+
+Measured on Apple Silicon. The renderer is cached after the first call (font load is one-time).
+
+| Terminal size | Format | Cold (first call) | Warm | Image size |
+|---------------|--------|-------------------:|-----:|-----------:|
+| 80×24 (small) | JPEG | ~35ms | **3ms** | ~4 KB |
+| 80×24 (small) | PNG | ~35ms | **3ms** | ~5 KB |
+| 120×50 (typical) | JPEG | — | **142ms** | ~267 KB |
+| 120×50 (typical) | PNG | — | **123ms** | ~477 KB |
+
+`getTerminalData()` (Zig parser) adds ~0.06ms overhead — effectively free.
+
 ### API
 
 #### Main Export
@@ -345,6 +400,22 @@ interface HighlightRegion {
 }
 
 // StyleFlags: bold=1, italic=2, underline=4, strikethrough=8, inverse=16, faint=32
+```
+
+#### Image Export
+
+```typescript
+import type {
+  RenderImageOptions,
+  RenderPaginatedOptions,
+  PaginatedRenderResult,
+  ImageTheme,
+} from "ghostty-opentui/image"
+
+import {
+  renderTerminalToImage,           // single image
+  renderTerminalToPaginatedImages, // split large output
+} from "ghostty-opentui/image"
 ```
 
 ## Quick Start (Development)
@@ -486,11 +557,23 @@ For streaming scenarios (feeding data in 100 chunks):
 
 Use `persistent: true` for streaming/interactive terminals for significant performance gains.
 
+### Image Rendering (renderTerminalToImage)
+
+First call includes font load (~35ms one-time). Subsequent calls reuse the cached renderer.
+
+| Terminal size | Format | Warm latency | Output size |
+|---------------|--------|-------------:|------------:|
+| 80×24 | JPEG | 3ms | 4 KB |
+| 80×24 | PNG | 3ms | 5 KB |
+| 120×50 | JPEG | 142ms | 267 KB |
+| 120×50 | PNG | 123ms | 477 KB |
+
 ### Key Insights
 
 - **Use `limit` for large files** - 292x faster for 20K lines with `limit=100`
 - **Persistent mode is ~6x faster** for streaming use cases
 - **Linear scaling without limit** - 10K lines takes ~10x longer than 1K lines
+- **Image rendering scales with terminal size** - 3ms for small, ~130ms for typical TUI
 
 ## Requirements
 
