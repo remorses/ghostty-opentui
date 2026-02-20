@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.2
+
+- Fix `devicePixelRatio` producing clipped/same-size images instead of higher resolution output
+  - The renderer uses `width`/`height` as the output canvas size — `devicePixelRatio` only affects layout computation
+  - Now multiplies render dimensions by the ratio: `width * dpr`, `height * dpr`
+  - A `devicePixelRatio: 2` render now correctly produces an image with 2x pixel dimensions
+
 ## 1.4.1
 
 - Add `devicePixelRatio` option to `RenderImageOptions` for HiDPI/retina screenshot rendering

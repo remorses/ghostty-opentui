@@ -417,13 +417,17 @@ export async function renderTerminalToImage(
     imageHeight,
   })
 
-  // Render
+  // Render — multiply dimensions by devicePixelRatio so the output image
+  // has more pixels while keeping the same layout. The renderer uses
+  // width/height as the output canvas size, devicePixelRatio only affects
+  // layout computation (CSS-like pixels), so we scale both.
+  const dpr = options.devicePixelRatio ?? 1
   const imageBuffer = await renderer.render(rootNode, {
-    width: imageWidth,
-    height: imageHeight,
+    width: Math.round(imageWidth * dpr),
+    height: Math.round(imageHeight * dpr),
     format,
     quality,
-    devicePixelRatio: options.devicePixelRatio,
+    devicePixelRatio: dpr,
   })
 
   return Buffer.from(imageBuffer)
@@ -481,12 +485,13 @@ export async function renderTerminalToPaginatedImages(
       imageHeight,
     })
 
+    const dpr = options.devicePixelRatio ?? 1
     const imageBuffer = await renderer.render(rootNode, {
-      width: imageWidth,
-      height: imageHeight,
+      width: Math.round(imageWidth * dpr),
+      height: Math.round(imageHeight * dpr),
       format,
       quality,
-      devicePixelRatio: options.devicePixelRatio,
+      devicePixelRatio: dpr,
     })
 
     const buffer = Buffer.from(imageBuffer)
