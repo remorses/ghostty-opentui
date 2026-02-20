@@ -43,6 +43,8 @@ export interface RenderImageOptions {
   quality?: number
   /** Path to a custom TTF/OTF font file. If not set, uses bundled JetBrains Mono Nerd */
   fontPath?: string
+  /** Device pixel ratio for HiDPI/retina rendering (default: 1) */
+  devicePixelRatio?: number
 }
 
 /** Options for paginated rendering */
@@ -421,6 +423,7 @@ export async function renderTerminalToImage(
     height: imageHeight,
     format,
     quality,
+    devicePixelRatio: options.devicePixelRatio,
   })
 
   return Buffer.from(imageBuffer)
@@ -483,6 +486,7 @@ export async function renderTerminalToPaginatedImages(
       height: imageHeight,
       format,
       quality,
+      devicePixelRatio: options.devicePixelRatio,
     })
 
     const buffer = Buffer.from(imageBuffer)

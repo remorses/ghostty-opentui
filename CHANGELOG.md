@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.1
+
+- Add `devicePixelRatio` option to `RenderImageOptions` for HiDPI/retina screenshot rendering
+  - Forwarded to `@takumi-rs/core` `renderer.render()` in both `renderTerminalToImage` and `renderTerminalToPaginatedImages`
+  - Use `devicePixelRatio: 2` for sharp images on social media and messaging apps
+
 ## 1.4.0
 
 - **Terminal-to-image rendering** via new `ghostty-opentui/image` export

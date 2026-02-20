@@ -1,6 +1,6 @@
 {
   "name": "ghostty-opentui",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "type": "module",
   "description": "Fast ANSI/VT terminal parser powered by Ghostty's Zig terminal emulation library",
   "scripts": {
