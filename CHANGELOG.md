@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.3
+
+- Fix missing `◼` (`U+25FC`) glyphs in image output when rendering heatmap-style content
+  - `renderTerminalToImage`: load bundled `Noto Sans Symbols 2` as a fallback font alongside JetBrains Mono Nerd
+  - `renderTerminalToPaginatedImages`: uses the same renderer initialization, so fallback applies to paginated exports too
+  - Update root image `fontFamily` to `JetBrains Mono Nerd, Noto Sans Symbols 2, monospace` for deterministic Unicode symbol fallback
+
 ## 1.4.2
 
 - Fix `devicePixelRatio` producing clipped/same-size images instead of higher resolution output

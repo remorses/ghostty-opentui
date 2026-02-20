@@ -1,6 +1,7 @@
 // Terminal-to-image rendering using takumi-rs.
 // Converts TerminalData (from ghostty-opentui parser) into PNG/WebP/JPEG images.
-// Uses JetBrains Mono Nerd font for consistent monospace rendering.
+// Uses JetBrains Mono Nerd font for monospace rendering with
+// Noto Sans Symbols 2 as fallback for missing Unicode glyphs.
 
 import { readFileSync } from "fs"
 import { join } from "path"
@@ -78,6 +79,7 @@ const DEFAULT_FONT_SIZE = 14
 const DEFAULT_LINE_HEIGHT = 1.5
 const DEFAULT_PADDING_X = 24
 const DEFAULT_PADDING_Y = 20
+const FALLBACK_SYMBOLS_FONT_NAME = "Noto Sans Symbols 2"
 /** Monospace character width as a fraction of font size.
  * JetBrains Mono has 600/1000 em-unit width, so 0.6 is accurate. */
 const CHAR_WIDTH_FACTOR = 0.6
@@ -113,10 +115,18 @@ async function getRenderer(fontPath?: string): Promise<import("@takumi-rs/core")
     const { Renderer } = await import("@takumi-rs/core")
     const renderer = new Renderer()
 
-    // Load font - use custom path or bundled JetBrains Mono Nerd
+    // Load primary font - use custom path or bundled JetBrains Mono Nerd
     const resolvedFontPath = fontPath ?? getBundledFontPath()
     const fontData = readFileSync(resolvedFontPath)
     await renderer.loadFont(new Uint8Array(fontData))
+
+    // Load Unicode symbols fallback font to cover glyphs that JetBrains Mono
+    // does not include (e.g. U+25FC ◼ used by heatmap cells).
+    const fallbackFontData = readFileSync(getBundledFallbackFontPath())
+    await renderer.loadFont({
+      data: new Uint8Array(fallbackFontData),
+      name: FALLBACK_SYMBOLS_FONT_NAME,
+    })
 
     cachedFontPath = fontPath
     cachedRenderer = renderer
@@ -131,6 +141,12 @@ function getBundledFontPath(): string {
   // import.meta.dirname works in both bun and node ESM
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
   return join(dir, "..", "public", "jetbrains-mono-nerd.ttf")
+}
+
+/** Resolve path to bundled fallback symbols font */
+function getBundledFallbackFontPath(): string {
+  const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
+  return join(dir, "..", "public", "noto-sans-symbols-2-regular.ttf")
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -347,7 +363,7 @@ function frameToRootNode(
       height: imageHeight,
       backgroundColor: theme.background,
       color: theme.text,
-      fontFamily: "JetBrains Mono Nerd, monospace",
+      fontFamily: `JetBrains Mono Nerd, ${FALLBACK_SYMBOLS_FONT_NAME}, monospace`,
       fontSize,
       whiteSpace: "pre",
       overflow: "hidden",
