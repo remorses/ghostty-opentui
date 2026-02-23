@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.4.4
+
+- **`frameColor` option** for `renderTerminalToImage` / `renderTerminalToPaginatedImages` — sets the color of the padding/frame area around the terminal content
+  - When `paddingX`/`paddingY` > 0 and no `frameColor` is given, auto-detects the dominant background color from edge cells so the frame blends with the app's chrome
+  - When `frameColor` differs from `theme.background`, content is wrapped in an inner container preserving the terminal background while the outer area shows the frame color
+- **Padding defaults changed to 0** — `paddingX` and `paddingY` now default to `0` (previously 24/20px); tuistory CLI handles padding with its own `--padding` flag
+- **Symbols Nerd Font Mono** bundled as a second fallback font alongside JetBrains Mono Nerd for broader Unicode glyph coverage (replaces the Noto Sans Symbols 2 approach from 1.4.3)
+  - `fontFamily` updated to `JetBrains Mono Nerd, Symbols Nerd Font Mono, monospace`
+
 ## 1.4.3
 
 - Fix missing `◼` (`U+25FC`) glyphs in image output when rendering heatmap-style content
