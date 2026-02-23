@@ -128,6 +128,23 @@ For interactive terminals, you'd use both:
 
 Currently this library is **read-only** - it parses ANSI but doesn't maintain persistent state between calls. For interactive use, we'd need to add persistent terminal instances (see README for future plans).
 
+## ESM relative imports must use .js extensions
+
+This package uses `"type": "module"` in package.json. Node.js ESM requires explicit `.js` extensions on relative imports. Bun is lenient about this but Node.js is not, and tuistory runs its relay daemon under Node.js.
+
+ALWAYS use `.js` extensions in relative imports, even in `.ts` source files:
+
+```typescript
+// CORRECT
+import { StyleFlags } from "./ffi.js"
+import type { TerminalData } from "./ffi.js"
+
+// WRONG — breaks under Node.js ESM
+import { StyleFlags } from "./ffi"
+```
+
+The tsconfig uses `moduleResolution: "Bundler"` (not `NodeNext`) because `@opentui/core` types don't resolve under NodeNext. This means tsc will NOT catch missing extensions — you must add them manually. Follow the pattern in `terminal-buffer.ts` and `image.ts`.
+
 ## Build & Run
 
 to build zig run zig build

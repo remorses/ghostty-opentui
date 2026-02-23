@@ -1,7 +1,7 @@
 import { test, expect, describe } from "bun:test"
 import { RGBA, type TextChunk, rgbToHex } from "@opentui/core"
-import { applyHighlightsToLine, terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer"
-import { ptyToJson } from "./ffi"
+import { applyHighlightsToLine, terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer.js"
+import { ptyToJson } from "./ffi.js"
 
 function toHex(rgba: RGBA | undefined): string | undefined {
   return rgba ? rgbToHex(rgba) : undefined

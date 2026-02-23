@@ -4,8 +4,8 @@
 import { describe, it, expect, beforeAll } from "bun:test"
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs"
 import { join } from "path"
-import { ptyToJson, PersistentTerminal, type TerminalData } from "./ffi"
-import { renderTerminalToImage, renderTerminalToPaginatedImages } from "./image"
+import { ptyToJson, PersistentTerminal, type TerminalData } from "./ffi.js"
+import { renderTerminalToImage, renderTerminalToPaginatedImages } from "./image.js"
 
 const TESTDATA_DIR = join(import.meta.dirname, "..", "testdata")
 const IMAGES_DIR = join(TESTDATA_DIR, "images")

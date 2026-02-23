@@ -7,8 +7,8 @@ import { readFileSync } from "fs"
 import { join } from "path"
 import { tmpdir } from "os"
 import { writeFileSync } from "fs"
-import type { TerminalData, TerminalLine, TerminalSpan } from "./ffi"
-import { StyleFlags } from "./ffi"
+import type { TerminalData, TerminalLine, TerminalSpan } from "./ffi.js"
+import { StyleFlags } from "./ffi.js"
 
 // ─────────────────────────────────────────────────────────────
 // Types

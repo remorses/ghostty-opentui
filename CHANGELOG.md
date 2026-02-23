@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.5
+
+- Fix `screenshot` command failing under Node.js ESM: `Cannot find module './ffi'` in `dist/image.js`
+  - Added missing `.js` extensions to relative imports in `src/image.ts` — Node.js ESM requires explicit extensions, Bun was lenient
+  - Also fixed extensions in all test/bench files for consistency
+  - Added AGENTS.md rule to always use `.js` in relative imports (tsconfig can't enforce this because `@opentui/core` doesn't resolve under NodeNext)
+
 ## 1.4.4
 
 - **`frameColor` option** for `renderTerminalToImage` / `renderTerminalToPaginatedImages` — sets the color of the padding/frame area around the terminal content

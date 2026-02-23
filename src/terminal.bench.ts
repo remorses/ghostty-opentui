@@ -1,5 +1,5 @@
 import { bench, describe } from "vitest"
-import { ptyToJson, ptyToText, ptyToHtml, PersistentTerminal, hasPersistentTerminalSupport } from "./ffi"
+import { ptyToJson, ptyToText, ptyToHtml, PersistentTerminal, hasPersistentTerminalSupport } from "./ffi.js"
 import fs from "fs"
 
 // =============================================================================

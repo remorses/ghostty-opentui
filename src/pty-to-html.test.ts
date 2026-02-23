@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { ptyToHtml } from "./ffi"
+import { ptyToHtml } from "./ffi.js"
 
 test("ptyToHtml - converts colored ANSI to styled HTML", () => {
   const ansi = `\x1b[32mHello\x1b[0m \x1b[1;31mWorld\x1b[0m!`

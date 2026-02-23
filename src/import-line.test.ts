@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test"
 import { rgbToHex } from "@opentui/core"
-import { ptyToJson, type TerminalData } from "./ffi"
-import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer"
+import { ptyToJson, type TerminalData } from "./ffi.js"
+import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer.js"
 
 function getLines(data: TerminalData): string[] {
   return data.lines
