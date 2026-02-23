@@ -1,7 +1,7 @@
 // Terminal-to-image rendering using takumi-rs.
 // Converts TerminalData (from ghostty-opentui parser) into PNG/WebP/JPEG images.
 // Uses JetBrains Mono Nerd font for monospace rendering with
-// Noto Sans Symbols 2 as fallback for missing Unicode glyphs.
+// Symbols Nerd Font Mono as fallback for missing Unicode glyphs.
 
 import { readFileSync } from "fs"
 import { join } from "path"
@@ -82,7 +82,7 @@ const DEFAULT_FONT_SIZE = 14
 const DEFAULT_LINE_HEIGHT = 1.5
 const DEFAULT_PADDING_X = 0
 const DEFAULT_PADDING_Y = 0
-const FALLBACK_SYMBOLS_FONT_NAME = "Noto Sans Symbols 2"
+const FALLBACK_SYMBOLS_FONT_NAME = "Symbols Nerd Font Mono"
 /** Monospace character width as a fraction of font size.
  * JetBrains Mono has 600/1000 em-unit width, so 0.6 is accurate. */
 const CHAR_WIDTH_FACTOR = 0.6
@@ -149,7 +149,7 @@ function getBundledFontPath(): string {
 /** Resolve path to bundled fallback symbols font */
 function getBundledFallbackFontPath(): string {
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
-  return join(dir, "..", "public", "noto-sans-symbols-2-regular.ttf")
+  return join(dir, "..", "public", "symbols-nerd-font-mono-regular.ttf")
 }
 
 // ─────────────────────────────────────────────────────────────
