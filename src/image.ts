@@ -32,9 +32,9 @@ export interface RenderImageOptions {
   fontSize?: number
   /** Line height multiplier (default: 1.5) */
   lineHeight?: number
-  /** Horizontal padding in pixels (default: 24) */
+  /** Horizontal padding in pixels (default: 0) */
   paddingX?: number
-  /** Vertical padding in pixels (default: 20) */
+  /** Vertical padding in pixels (default: 0) */
   paddingY?: number
   /** Theme colors (default: tokyo night) */
   theme?: ImageTheme
@@ -46,6 +46,9 @@ export interface RenderImageOptions {
   fontPath?: string
   /** Device pixel ratio for HiDPI/retina rendering (default: 1) */
   devicePixelRatio?: number
+  /** Color of the padding/frame area. Defaults to theme.background.
+   * Only visible when paddingX or paddingY > 0. */
+  frameColor?: string
 }
 
 /** Options for paginated rendering */
@@ -77,8 +80,8 @@ const DEFAULT_THEME: ImageTheme = {
 
 const DEFAULT_FONT_SIZE = 14
 const DEFAULT_LINE_HEIGHT = 1.5
-const DEFAULT_PADDING_X = 24
-const DEFAULT_PADDING_Y = 20
+const DEFAULT_PADDING_X = 0
+const DEFAULT_PADDING_Y = 0
 const FALLBACK_SYMBOLS_FONT_NAME = "Noto Sans Symbols 2"
 /** Monospace character width as a fraction of font size.
  * JetBrains Mono has 600/1000 em-unit width, so 0.6 is accurate. */
@@ -172,6 +175,46 @@ function trimTrailingEmptyLines(lines: TerminalLine[]): TerminalLine[] {
     end--
   }
   return lines.slice(0, end)
+}
+
+/**
+ * Detect the dominant background color along the edges of the terminal content.
+ * Samples: all spans on first/last line + first/last span of each line in between.
+ * Returns the most common color, falling back to the provided default.
+ */
+function detectEdgeColor(lines: TerminalLine[], fallback: string): string {
+  const counts = new Map<string, number>()
+  const add = (color: string | null) => {
+    const c = color ?? fallback
+    counts.set(c, (counts.get(c) ?? 0) + 1)
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const spans = lines[i]!.spans
+    if (spans.length === 0) {
+      add(null)
+      continue
+    }
+    if (i === 0 || i === lines.length - 1) {
+      // Sample all spans on first and last lines
+      for (const span of spans) add(span.bg)
+    } else {
+      // Sample first and last span of middle lines
+      add(spans[0]!.bg)
+      if (spans.length > 1) add(spans[spans.length - 1]!.bg)
+    }
+  }
+
+  // Return most frequent color
+  let best = fallback
+  let bestCount = 0
+  for (const [color, count] of counts) {
+    if (count > bestCount) {
+      best = color
+      bestCount = count
+    }
+  }
+  return best
 }
 
 /** Calculate auto width from terminal columns */
@@ -338,6 +381,8 @@ function frameToRootNode(
     imageHeight,
   } = options
 
+  const frameColor = options.frameColor
+  const hasFrame = (paddingX > 0 || paddingY > 0) && frameColor && frameColor !== theme.background
   const contentWidth = imageWidth - paddingX * 2
   const charWidth = fontSize * CHAR_WIDTH_FACTOR
 
@@ -353,6 +398,27 @@ function frameToRootNode(
     }),
   )
 
+  // When frameColor differs from background, wrap lines in an inner container
+  // so the padding area shows frameColor while content shows theme.background.
+  // flexGrow: 1 ensures the inner container fills the full content area even
+  // when using a fixed height with fewer lines than the available space.
+  const children = hasFrame
+    ? [
+        container({
+          style: {
+            display: "flex",
+            flexDirection: "column",
+            flexShrink: 0,
+            flexGrow: 1,
+            gap: 0,
+            backgroundColor: theme.background,
+            overflow: "hidden",
+          },
+          children: lineNodes,
+        }),
+      ]
+    : lineNodes
+
   return container({
     style: {
       display: "flex",
@@ -361,7 +427,7 @@ function frameToRootNode(
       gap: 0,
       width: imageWidth,
       height: imageHeight,
-      backgroundColor: theme.background,
+      backgroundColor: hasFrame ? frameColor : theme.background,
       color: theme.text,
       fontFamily: `JetBrains Mono Nerd, ${FALLBACK_SYMBOLS_FONT_NAME}, monospace`,
       fontSize,
@@ -372,7 +438,7 @@ function frameToRootNode(
       paddingLeft: paddingX,
       paddingRight: paddingX,
     },
-    children: lineNodes,
+    children,
   })
 }
 
@@ -426,9 +492,15 @@ export async function renderTerminalToImage(
     imageHeight = lines.length * lineHeightPx + paddingY * 2
   }
 
+  // Auto-detect frame color from edge cells when padding is set but no explicit frameColor
+  const theme = options.theme ?? DEFAULT_THEME
+  const resolvedFrameColor =
+    options.frameColor ?? ((paddingX > 0 || paddingY > 0) ? detectEdgeColor(visibleLines, theme.background) : undefined)
+
   // Build node tree
   const rootNode = frameToRootNode(visibleLines, helpers, {
     ...options,
+    frameColor: resolvedFrameColor,
     imageWidth,
     imageHeight,
   })
@@ -481,6 +553,11 @@ export async function renderTerminalToPaginatedImages(
 
   const lineHeightPx = Math.round(fontSize * lineHeight)
 
+  // Auto-detect frame color from edge cells when padding is set but no explicit frameColor
+  const theme = options.theme ?? DEFAULT_THEME
+  const resolvedFrameColor =
+    options.frameColor ?? ((paddingX > 0 || paddingY > 0) ? detectEdgeColor(lines, theme.background) : undefined)
+
   // Split into chunks
   const chunks: TerminalLine[][] = []
   for (let i = 0; i < lines.length; i += maxLinesPerImage) {
@@ -497,6 +574,7 @@ export async function renderTerminalToPaginatedImages(
 
     const rootNode = frameToRootNode(chunk, helpers, {
       ...options,
+      frameColor: resolvedFrameColor,
       imageWidth,
       imageHeight,
     })
