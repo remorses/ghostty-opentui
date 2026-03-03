@@ -9,6 +9,7 @@ import {
 import { ptyToJson, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan, StyleFlags } from "./ffi.js"
 
 const DEFAULT_FG = RGBA.fromHex("#d4d4d4")
+const DEFAULT_BG = RGBA.fromHex("#1e1e1e")
 
 /**
  * Defines a region to highlight in the terminal output.
@@ -45,7 +46,7 @@ function convertSpanToChunk(span: TerminalSpan): TextChunk {
 
   if (flags & StyleFlags.INVERSE) {
     const temp = fgColor
-    fgColor = bgColor || DEFAULT_FG
+    fgColor = bgColor || DEFAULT_BG
     bgColor = temp
   }
 
