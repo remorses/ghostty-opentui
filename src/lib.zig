@@ -195,6 +195,25 @@ pub fn writeJsonOutput(
             }
         }
 
+        // Extend to include trailing styled empty cells (e.g., from EL with an explicit
+        // background color). Terminal programs sometimes use "\x1b[48;2;r;g;bm\x1b[K" or
+        // "\x1b[48;5;Nm\x1b[K" to create full-width colored bands. Without this, those
+        // erased-but-styled cells get trimmed because they have codepoint=0.
+        if (last_content_col < cells.len) {
+            var scan: usize = cells.len;
+            while (scan > last_content_col) {
+                scan -= 1;
+                const cell = &cells[scan];
+                if (cell.wide == .spacer_tail) continue;
+                if (cell.codepoint() != 0) break; // Content cell, already handled
+                const style = getStyleFromCell(cell, pin, palette, terminal_bg);
+                if (style.bg != null) {
+                    last_content_col = scan + 1;
+                    break;
+                }
+            }
+        }
+
         var span_start: usize = 0;
         var span_len: usize = 0;
         var current_style: ?CellStyle = null;
@@ -873,4 +892,50 @@ test "PersistentTerminal handles cursor movement" {
 
     // Cursor should have moved right
     try testing.expectEqual(@as(usize, 6), term.terminal.screens.active.cursor.x);
+}
+
+test "normal text does not get trailing padding" {
+    const alloc = testing.allocator;
+
+    var t: ghostty_vt.Terminal = try .init(alloc, .{ .cols = 80, .rows = 24 });
+    defer t.deinit(alloc);
+
+    var stream = t.vtStream();
+    defer stream.deinit();
+
+    // Plain text without any styling
+    try stream.nextSlice("Hello");
+
+    var output: std.ArrayListAligned(u8, null) = .empty;
+    defer output.deinit(alloc);
+
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
+
+    const json = output.items;
+    // Should have "Hello" with width 5, NOT padded to 80
+    try testing.expect(std.mem.indexOf(u8, json, "\"Hello\"") != null);
+    try testing.expect(std.mem.indexOf(u8, json, ",5]") != null);
+}
+
+test "background color with EL extends to full line width" {
+    const alloc = testing.allocator;
+
+    var t: ghostty_vt.Terminal = try .init(alloc, .{ .cols = 80, .rows = 24 });
+    defer t.deinit(alloc);
+
+    var stream = t.vtStream();
+    defer stream.deinit();
+
+    // Set blue background and erase to end of line
+    try stream.nextSlice("\x1b[44m\x1b[K");
+
+    var output: std.ArrayListAligned(u8, null) = .empty;
+    defer output.deinit(alloc);
+
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
+
+    const json = output.items;
+
+    // Should have a span extending to 20 columns with a background color
+    try testing.expect(std.mem.indexOf(u8, json, ",80]") != null);
 }
