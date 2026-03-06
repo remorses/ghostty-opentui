@@ -277,7 +277,7 @@ export function terminalDataToStyledText(
 }
 
 export interface GhosttyTerminalOptions extends TextBufferOptions {
-  ansi?: string | Buffer
+  ansi?: string | Buffer | Uint8Array
   cols?: number
   rows?: number
   limit?: number  // Maximum number of lines to render (from start)
@@ -303,7 +303,7 @@ export interface GhosttyTerminalOptions extends TextBufferOptions {
 export type TerminalBufferOptions = GhosttyTerminalOptions
 
 export class GhosttyTerminalRenderable extends TextBufferRenderable {
-  private _ansi: string | Buffer
+  private _ansi: string | Buffer | Uint8Array
   private _cols: number
   private _rows: number
   private _limit?: number
@@ -416,11 +416,11 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     }
   }
 
-  get ansi(): string | Buffer {
+  get ansi(): string | Buffer | Uint8Array {
     return this._ansi
   }
 
-  set ansi(value: string | Buffer) {
+  set ansi(value: string | Buffer | Uint8Array) {
     if (this._ansi !== value) {
       this._ansi = value
       
@@ -484,7 +484,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
    * 
    * @param data - ANSI data to feed to the terminal
    */
-  feed(data: string | Buffer): void {
+  feed(data: string | Buffer | Uint8Array): void {
     if (!this._persistentTerminal) {
       throw new Error("feed() is only available in persistent mode. Set persistent=true in options.")
     }
