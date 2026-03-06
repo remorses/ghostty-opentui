@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "bun:test"
 import { rgbToHex } from "@opentui/core"
-import { ptyToJson, ptyToText, StyleFlags, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan } from "./ffi"
-import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer"
+import { ptyToJson, ptyToText, StyleFlags, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan } from "./ffi.js"
+import { terminalDataToStyledText, type HighlightRegion } from "./terminal-buffer.js"
 
 describe("ptyToJson", () => {
   it("should parse simple ANSI text", () => {
@@ -434,6 +434,41 @@ describe("PersistentTerminal", () => {
     expect(text).toContain("Uint8Array Input")
   })
 
+  it("should preserve split UTF-8 Buffer input across feeds", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+
+    const bytes = Buffer.from("🙂", "utf-8")
+    terminal.feed(bytes.subarray(0, 2))
+    expect(terminal.getText()).toBe("")
+
+    terminal.feed(bytes.subarray(2))
+    expect(terminal.getText()).toBe("🙂")
+  })
+
+  it("should preserve split UTF-8 Uint8Array input across feeds", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+
+    const bytes = new TextEncoder().encode("🙂")
+    terminal.feed(bytes.subarray(0, 2))
+    expect(terminal.getText()).toBe("")
+
+    terminal.feed(bytes.subarray(2))
+    expect(terminal.getText()).toBe("🙂")
+  })
+
+  it("should not stitch split UTF-8 bytes across a string feed", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+
+    const bytes = Buffer.from("🙂", "utf-8")
+    terminal.feed(bytes.subarray(0, 2))
+    terminal.feed("X")
+    terminal.feed(bytes.subarray(2))
+
+    const text = terminal.getText()
+    expect(text).toContain("X")
+    expect(text).not.toContain("🙂")
+  })
+
   it("should handle cursor movement escape sequences", () => {
     terminal = new PersistentTerminal({ cols: 80, rows: 24 })
     
@@ -491,4 +526,3 @@ describe("PersistentTerminal", () => {
     expect(text).toContain("Build complete")
   })
 })
-

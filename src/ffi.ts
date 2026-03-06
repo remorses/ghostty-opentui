@@ -3,6 +3,8 @@ import { native, type NativeModule } from "./native-lib.cjs"
 
 export type { NativeModule }
 
+const utf8Decoder = new TextDecoder("utf-8")
+
 export interface TerminalSpan {
   text: string
   fg: string | null
@@ -32,13 +34,21 @@ export interface PtyToJsonOptions {
   limit?: number
 }
 
+function decodeUtf8(input: Buffer | Uint8Array | string): string {
+  if (typeof input === "string") {
+    return input
+  }
+
+  return utf8Decoder.decode(input)
+}
+
 /**
  * Windows fallback: strips ANSI codes and returns plain text lines
  */
 function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJsonOptions = {}): TerminalData {
   const { cols = 120, rows = 40, offset = 0, limit = 0 } = options
 
-  const text = typeof input === "string" ? input : input.toString("utf-8")
+  const text = decodeUtf8(input)
   const plainText = stripAnsi(text)
   const allLines = plainText.split("\n")
 
@@ -68,7 +78,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
 
   const { cols = 120, rows = 40, offset = 0, limit = 0 } = options
 
-  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
+  const inputStr = decodeUtf8(input)
 
   // Handle empty input
   if (inputStr.length === 0) {
@@ -123,7 +133,7 @@ export interface PtyToTextOptions {
  * Windows fallback: strips ANSI codes and returns plain text
  */
 function ptyToTextFallback(input: Buffer | Uint8Array | string, options: PtyToTextOptions = {}): string {
-  const text = typeof input === "string" ? input : input.toString("utf-8")
+  const text = decodeUtf8(input)
   return stripAnsi(text)
 }
 
@@ -144,7 +154,7 @@ export function ptyToText(input: Buffer | Uint8Array | string, options: PtyToTex
   // cols affects line wrapping (high default to avoid unwanted wraps)
   const { cols = 500, rows = 256 } = options
 
-  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
+  const inputStr = decodeUtf8(input)
 
   // Handle empty input
   if (inputStr.length === 0) {
@@ -163,7 +173,7 @@ export interface PtyToHtmlOptions {
  * Windows fallback: wraps plain text in pre tags
  */
 function ptyToHtmlFallback(input: Buffer | Uint8Array | string, options: PtyToHtmlOptions = {}): string {
-  const text = typeof input === "string" ? input : input.toString("utf-8")
+  const text = decodeUtf8(input)
   const plainText = stripAnsi(text)
   // Escape HTML entities
   const escaped = plainText
@@ -191,7 +201,7 @@ export function ptyToHtml(input: Buffer | Uint8Array | string, options: PtyToHtm
   // cols affects line wrapping (high default to avoid unwanted wraps)
   const { cols = 500, rows = 256 } = options
 
-  const inputStr = typeof input === "string" ? input : input.toString("utf-8")
+  const inputStr = decodeUtf8(input)
 
   // Handle empty input
   if (inputStr.length === 0) {
@@ -244,6 +254,7 @@ export class PersistentTerminal {
   private _cols: number
   private _rows: number
   private _destroyed = false
+  private _streamDecoder = new TextDecoder("utf-8")
 
   constructor(options: PersistentTerminalOptions = {}) {
     if (!native) {
@@ -283,16 +294,22 @@ export class PersistentTerminal {
    */
   feed(data: Buffer | Uint8Array | string): void {
     this.assertNotDestroyed()
-    let str: string
+
     if (typeof data === "string") {
-      str = data
-    } else if (Buffer.isBuffer(data)) {
-      str = data.toString("utf-8")
-    } else {
-      // Uint8Array - use TextDecoder
-      str = new TextDecoder("utf-8").decode(data)
+      // Discard any partial UTF-8 bytes from prior binary feeds before
+      // crossing into a plain string boundary.
+      this._streamDecoder = new TextDecoder("utf-8")
+
+      if (data.length > 0) {
+        native!.feedTerminal(this._id, data)
+      }
+      return
     }
-    native!.feedTerminal(this._id, str)
+
+    const decoded = this._streamDecoder.decode(data, { stream: true })
+    if (decoded.length > 0) {
+      native!.feedTerminal(this._id, decoded)
+    }
   }
 
   /**
@@ -312,6 +329,7 @@ export class PersistentTerminal {
   reset(): void {
     this.assertNotDestroyed()
     native!.resetTerminal(this._id)
+    this._streamDecoder = new TextDecoder("utf-8")
   }
 
   /**
@@ -387,6 +405,7 @@ export class PersistentTerminal {
   destroy(): void {
     if (this._destroyed) return
     this._destroyed = true
+    this._streamDecoder = new TextDecoder("utf-8")
     native!.destroyTerminal(this._id)
   }
 

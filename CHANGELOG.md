@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.4.6
+
+- Fix `PersistentTerminal` corrupting split UTF-8 `Buffer` / `Uint8Array` input across `feed()` calls
+  - `PersistentTerminal.feed()` now uses a persistent `TextDecoder` with streaming mode, so multibyte code points survive PTY chunk boundaries
+  - String feeds and `reset()` now recreate that streaming decoder, discarding any partial binary state instead of carrying extra decoder bookkeeping
+  - `ptyToJson`, `ptyToText`, and `ptyToHtml` now share a consistent UTF-8 decode path for binary input
+  - `ghostty-terminal` typings now accept `Uint8Array` for `ansi` and `feed()`
+  - Added tests covering split multibyte `Buffer` and `Uint8Array` feeds
+- Fix trailing styled empty cells being trimmed from JSON output
+  - `writeJsonOutput()` now keeps end-of-line cells that have no codepoint but do carry styling, such as background colors produced by `EL` / erase-to-end-of-line sequences
+  - Preserves full-width colored prompt and status bars instead of truncating them at the last non-empty character
+- Fix INVERSE text becoming invisible when the original background color is unset
+  - `convertSpanToChunk` now falls back to the default terminal background instead of the default foreground when swapping colors for the `INVERSE` flag
+  - Restores correct rendering for TUIs like `nano` where inverted text was previously rendered with identical foreground and background colors
+
 ## 1.4.5
 
 - Fix `screenshot` command failing under Node.js ESM: `Cannot find module './ffi'` in `dist/image.js`
