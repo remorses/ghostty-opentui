@@ -4,6 +4,7 @@
 
 - Fix `PersistentTerminal` corrupting split UTF-8 `Buffer` / `Uint8Array` input across `feed()` calls
   - `PersistentTerminal.feed()` now uses a persistent `TextDecoder` with streaming mode, so multibyte code points survive PTY chunk boundaries
+  - String feeds and `reset()` now recreate that streaming decoder, discarding any partial binary state instead of carrying extra decoder bookkeeping
   - `ptyToJson`, `ptyToText`, and `ptyToHtml` now share a consistent UTF-8 decode path for binary input
   - `ghostty-terminal` typings now accept `Uint8Array` for `ansi` and `feed()`
   - Added tests covering split multibyte `Buffer` and `Uint8Array` feeds

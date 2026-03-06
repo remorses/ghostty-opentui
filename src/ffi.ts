@@ -255,7 +255,6 @@ export class PersistentTerminal {
   private _rows: number
   private _destroyed = false
   private _streamDecoder = new TextDecoder("utf-8")
-  private _hasBinaryDecoderState = false
 
   constructor(options: PersistentTerminalOptions = {}) {
     if (!native) {
@@ -297,14 +296,9 @@ export class PersistentTerminal {
     this.assertNotDestroyed()
 
     if (typeof data === "string") {
-      if (this._hasBinaryDecoderState) {
-        const flushed = this._streamDecoder.decode()
-        this._streamDecoder = new TextDecoder("utf-8")
-        this._hasBinaryDecoderState = false
-        if (flushed.length > 0) {
-          native!.feedTerminal(this._id, flushed)
-        }
-      }
+      // Discard any partial UTF-8 bytes from prior binary feeds before
+      // crossing into a plain string boundary.
+      this._streamDecoder = new TextDecoder("utf-8")
 
       if (data.length > 0) {
         native!.feedTerminal(this._id, data)
@@ -312,7 +306,6 @@ export class PersistentTerminal {
       return
     }
 
-    this._hasBinaryDecoderState = true
     const decoded = this._streamDecoder.decode(data, { stream: true })
     if (decoded.length > 0) {
       native!.feedTerminal(this._id, decoded)
@@ -337,7 +330,6 @@ export class PersistentTerminal {
     this.assertNotDestroyed()
     native!.resetTerminal(this._id)
     this._streamDecoder = new TextDecoder("utf-8")
-    this._hasBinaryDecoderState = false
   }
 
   /**
@@ -414,7 +406,6 @@ export class PersistentTerminal {
     if (this._destroyed) return
     this._destroyed = true
     this._streamDecoder = new TextDecoder("utf-8")
-    this._hasBinaryDecoderState = false
     native!.destroyTerminal(this._id)
   }
 

@@ -456,6 +456,19 @@ describe("PersistentTerminal", () => {
     expect(terminal.getText()).toBe("🙂")
   })
 
+  it("should not stitch split UTF-8 bytes across a string feed", () => {
+    terminal = new PersistentTerminal({ cols: 80, rows: 24 })
+
+    const bytes = Buffer.from("🙂", "utf-8")
+    terminal.feed(bytes.subarray(0, 2))
+    terminal.feed("X")
+    terminal.feed(bytes.subarray(2))
+
+    const text = terminal.getText()
+    expect(text).toContain("X")
+    expect(text).not.toContain("🙂")
+  })
+
   it("should handle cursor movement escape sequences", () => {
     terminal = new PersistentTerminal({ cols: 80, rows: 24 })
     
