@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.4.6
+## 1.4.7
 
 - Fix cursor not visually advancing when positioned beyond line content
   - `applyCursorToLine` now pads with spaces when the cursor column exceeds the line's text length, so cursor movements without character writes (e.g. typing spaces in vi insert mode through tmux) produce distinct rendered output and trigger screen updates
