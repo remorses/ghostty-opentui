@@ -189,8 +189,12 @@ function applyCursorToLine(
 ): TextChunk[] {
   const totalLen = chunks.reduce((sum, c) => sum + c.text.length, 0)
 
-  // Cursor beyond line content - append cursor at end
+  // Cursor beyond line content - pad with spaces then append cursor
   if (cursorX >= totalLen) {
+    const gap = cursorX - totalLen
+    if (gap > 0) {
+      return [...chunks, { __isChunk: true, text: " ".repeat(gap), attributes: 0 } as TextChunk, makeCursorChunk(" ", cursorStyle)]
+    }
     return [...chunks, makeCursorChunk(" ", cursorStyle)]
   }
 
