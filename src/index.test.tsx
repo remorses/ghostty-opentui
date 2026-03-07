@@ -249,6 +249,46 @@ Line 2"
   })
 })
 
+describe("cursor gap padding", () => {
+  it("should place cursor at correct column when beyond line content", () => {
+    const data = ptyToJson("abc", { cols: 80, rows: 24 })
+
+    // Cursor at col 3 (immediately after "abc") — no gap needed
+    const styled3 = terminalDataToStyledText(data, undefined, { x: 3, y: 0, style: "block" })
+    const line3 = styled3.chunks.slice(0, styled3.chunks.indexOf(styled3.chunks.find(c => c.text === "\n")!))
+    const widths3 = line3.map(c => c.text.length)
+    expect(widths3).toEqual([3, 1]) // "abc" + cursor " "
+
+    // Cursor at col 5 (2 columns past "abc") — needs 2-space gap
+    const styled5 = terminalDataToStyledText(data, undefined, { x: 5, y: 0, style: "block" })
+    const line5 = styled5.chunks.slice(0, styled5.chunks.indexOf(styled5.chunks.find(c => c.text === "\n")!))
+    const widths5 = line5.map(c => c.text.length)
+    expect(widths5).toEqual([3, 2, 1]) // "abc" + "  " gap + cursor " "
+  })
+
+  it("should produce distinct output for each cursor position", () => {
+    const term = new PersistentTerminal({ cols: 80, rows: 24 })
+    term.feed("abc")
+
+    const renders: string[] = []
+    for (let col = 3; col <= 6; col++) {
+      // Simulate cursor at different columns via CUP
+      term.feed(`\x1b[1;${col + 1}H`) // 1-based
+      const data = term.getJson()
+      const styled = terminalDataToStyledText(data, undefined, {
+        x: data.cursor[0], y: data.cursor[1], style: "block",
+      })
+      renders.push(styled.chunks.map(c => c.text).join(""))
+    }
+
+    term.destroy()
+
+    // Each position should produce a unique render
+    const unique = new Set(renders)
+    expect(unique.size).toBe(renders.length)
+  })
+})
+
 describe("PersistentTerminal", () => {
   let terminal: PersistentTerminal | null = null
 

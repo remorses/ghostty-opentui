@@ -2,6 +2,8 @@
 
 ## 1.4.6
 
+- Fix cursor not visually advancing when positioned beyond line content
+  - `applyCursorToLine` now pads with spaces when the cursor column exceeds the line's text length, so cursor movements without character writes (e.g. typing spaces in vi insert mode through tmux) produce distinct rendered output and trigger screen updates
 - Fix `PersistentTerminal` corrupting split UTF-8 `Buffer` / `Uint8Array` input across `feed()` calls
   - `PersistentTerminal.feed()` now uses a persistent `TextDecoder` with streaming mode, so multibyte code points survive PTY chunk boundaries
   - String feeds and `reset()` now recreate that streaming decoder, discarding any partial binary state instead of carrying extra decoder bookkeeping
