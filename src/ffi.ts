@@ -22,7 +22,7 @@ export interface TerminalData {
   rows: number
   cursor: [number, number]
   cursorVisible: boolean
-  cursorStyle: "block" | "bar" | "underline" | "block_hollow"
+  cursorStyle: "default" | "block" | "bar" | "underline" | "block_hollow"
   offset: number
   totalLines: number
   lines: TerminalLine[]

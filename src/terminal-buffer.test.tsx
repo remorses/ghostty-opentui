@@ -478,6 +478,38 @@ Line3
     expect(positionCalls).toContainEqual([0, 0, false])
   })
 
+  it("should use 'default' cursor style when no DECSCUSR received and cursorStyle unset", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    // No DECSCUSR in the ANSI content
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"hello"}
+        cols={10}
+        rows={1}
+        showCursor
+        style={{ width: 10, height: 1 }}
+      />,
+      { width: 10, height: 1 }
+    )
+
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    // No DECSCUSR → "default" style (preserves outer terminal's native cursor)
+    expect(styleCalls).toContainEqual({ style: "default", blinking: false })
+  })
+
   it("should pass through terminal bar cursor style as 'line' when cursorStyle is unset", async () => {
     const ref = { current: null as GhosttyTerminalRenderable | null }
 

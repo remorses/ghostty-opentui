@@ -327,7 +327,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     x: 0,
     y: 0,
     visible: false,
-    style: "block" as "block" | "line" | "underline",
+    style: "default" as "default" | "block" | "line" | "underline",
   }
   
   // Persistent terminal support
@@ -633,9 +633,10 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
         this._renderCursor.x = data.cursor[0]
         this._renderCursor.y = cursorY
         this._renderCursor.visible = data.cursorVisible && cursorY < data.lines.length
-        // Map Ghostty cursor style names to opentui names ("bar" → "line")
+        // Map Ghostty cursor style names to opentui names
+        // "bar" → "line", "default" preserved as "default" (→ \x1b[0 q, native cursor)
         const ts = data.cursorStyle
-        this._renderCursor.style = ts === "bar" ? "line" : ts === "underline" ? "underline" : "block"
+        this._renderCursor.style = ts === "default" ? "default" : ts === "bar" ? "line" : ts === "underline" ? "underline" : "block"
       } else {
         this._renderCursor.visible = false
       }

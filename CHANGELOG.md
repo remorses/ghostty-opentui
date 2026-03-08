@@ -2,6 +2,10 @@
 
 ## 1.4.8
 
+- Report `"default"` cursor style when no DECSCUSR has been received
+  - Persistent terminals track whether the inner application has explicitly set a cursor style; stateless `ptyToJson` compares before/after parsing
+  - When no DECSCUSR was sent, JSON reports `cursorStyle: "default"` instead of `"block"`, which maps to opentui's `"default"` style (`\x1b[0 q` — preserve the outer terminal's native cursor)
+  - Prevents the Ghostty parser's VT default (`block`) from overriding the user's terminal cursor preference at the shell prompt
 - Pass through cursor style from inner applications via DECSCUSR escape sequences
   - The Ghostty terminal parser's `cursor_style` is now included in the JSON output and mapped to opentui cursor styles (`bar` → `line`, `underline` → `underline`, `block`/`block_hollow` → `block`)
   - When `cursorStyle` prop is omitted, `setCursorStyle()` uses the style from the running application (e.g. vim sets underline, shell sets bar)
