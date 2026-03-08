@@ -299,9 +299,14 @@ export interface GhosttyTerminalOptions extends TextBufferOptions {
   showCursor?: boolean
   /**
    * Cursor style: 'block' or 'underline'. When omitted, the terminal's
-   * native cursor style is preserved.
+   * native cursor style is preserved (e.g. bar set via DECSCUSR).
    */
   cursorStyle?: "block" | "underline"
+  /**
+   * Whether this component participates in focus management.
+   * When true, cursor rendering is gated on focus state.
+   */
+  focusable?: boolean
 }
 
 /** @deprecated Use GhosttyTerminalOptions instead */
@@ -322,6 +327,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     x: 0,
     y: 0,
     visible: false,
+    style: "block" as "block" | "line" | "underline",
   }
   
   // Persistent terminal support
@@ -344,7 +350,13 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     this._persistent = options.persistent ?? false
     this._showCursor = options.showCursor ?? false
     this._cursorStyle = options.cursorStyle
-    
+
+    // TextBufferRenderable doesn't read options.focusable (only BoxRenderable does),
+    // so we need to read it ourselves.
+    if (options.focusable) {
+      this._focusable = true
+    }
+
     // Initialize persistent terminal if enabled
     if (this._persistent && hasPersistentTerminalSupport()) {
       this._persistentTerminal = new PersistentTerminal({
@@ -563,12 +575,11 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       return
     }
 
-    if (this._cursorStyle) {
-      this.ctx.setCursorStyle({
-        style: this._cursorStyle,
-        blinking: false,
-      })
-    }
+    const style = this._cursorStyle ?? this._renderCursor.style
+    this.ctx.setCursorStyle({
+      style,
+      blinking: false,
+    })
     this.ctx.setCursorPosition(
       this.x + this._renderCursor.x + 1,
       this.y + this._renderCursor.y + 1,
@@ -622,6 +633,9 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
         this._renderCursor.x = data.cursor[0]
         this._renderCursor.y = cursorY
         this._renderCursor.visible = data.cursorVisible && cursorY < data.lines.length
+        // Map Ghostty cursor style names to opentui names ("bar" → "line")
+        const ts = data.cursorStyle
+        this._renderCursor.style = ts === "bar" ? "line" : ts === "underline" ? "underline" : "block"
       } else {
         this._renderCursor.visible = false
       }

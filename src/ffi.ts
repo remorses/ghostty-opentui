@@ -22,6 +22,7 @@ export interface TerminalData {
   rows: number
   cursor: [number, number]
   cursorVisible: boolean
+  cursorStyle: "block" | "bar" | "underline" | "block_hollow"
   offset: number
   totalLines: number
   lines: TerminalLine[]
@@ -62,6 +63,7 @@ function ptyToJsonFallback(input: Buffer | Uint8Array | string, options: PtyToJs
     rows,
     cursor: [0, selectedLines.length],
     cursorVisible: true,
+    cursorStyle: "block",
     offset,
     totalLines: allLines.length,
     lines: selectedLines.map((lineText) => ({
@@ -87,6 +89,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
       rows,
       cursor: [0, 0],
       cursorVisible: true,
+      cursorStyle: "block",
       offset,
       totalLines: 0,
       lines: [],
@@ -100,6 +103,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
     rows: number
     cursor: [number, number]
     cursorVisible: boolean
+    cursorStyle: string
     offset: number
     totalLines: number
     lines: Array<Array<[string, string | null, string | null, number, number]>>
@@ -110,6 +114,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
     rows: raw.rows,
     cursor: raw.cursor,
     cursorVisible: raw.cursorVisible,
+    cursorStyle: (raw.cursorStyle ?? "block") as TerminalData["cursorStyle"],
     offset: raw.offset,
     totalLines: raw.totalLines,
     lines: raw.lines.map((line) => ({
@@ -345,6 +350,7 @@ export class PersistentTerminal {
       rows: number
       cursor: [number, number]
       cursorVisible: boolean
+      cursorStyle: string
       offset: number
       totalLines: number
       lines: Array<Array<[string, string | null, string | null, number, number]>>
@@ -355,6 +361,7 @@ export class PersistentTerminal {
       rows: raw.rows,
       cursor: raw.cursor,
       cursorVisible: raw.cursorVisible,
+      cursorStyle: (raw.cursorStyle ?? "block") as TerminalData["cursorStyle"],
       offset: raw.offset,
       totalLines: raw.totalLines,
       lines: raw.lines.map((line) => ({
