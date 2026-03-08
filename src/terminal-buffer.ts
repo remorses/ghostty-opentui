@@ -298,7 +298,8 @@ export interface GhosttyTerminalOptions extends TextBufferOptions {
    */
   showCursor?: boolean
   /**
-   * Cursor style: 'block' or 'underline'. Defaults to 'block'.
+   * Cursor style: 'block' or 'underline'. When omitted, the terminal's
+   * native cursor style is preserved.
    */
   cursorStyle?: "block" | "underline"
 }
@@ -316,7 +317,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   private _ansiDirty: boolean = false
   private _lineCount: number = 0
   private _showCursor: boolean = false
-  private _cursorStyle: "block" | "underline" = "block"
+  private _cursorStyle: "block" | "underline" | undefined = undefined
   private _renderCursor = {
     x: 0,
     y: 0,
@@ -342,7 +343,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     this._highlights = options.highlights
     this._persistent = options.persistent ?? false
     this._showCursor = options.showCursor ?? false
-    this._cursorStyle = options.cursorStyle ?? "block"
+    this._cursorStyle = options.cursorStyle
     
     // Initialize persistent terminal if enabled
     if (this._persistent && hasPersistentTerminalSupport()) {
@@ -413,11 +414,11 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     }
   }
 
-  get cursorStyle(): "block" | "underline" {
+  get cursorStyle(): "block" | "underline" | undefined {
     return this._cursorStyle
   }
 
-  set cursorStyle(value: "block" | "underline") {
+  set cursorStyle(value: "block" | "underline" | undefined) {
     if (this._cursorStyle !== value) {
       this._cursorStyle = value
       this._ansiDirty = true
@@ -563,10 +564,12 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       return
     }
 
-    this.ctx.setCursorStyle({
-      style: this._cursorStyle,
-      blinking: false,
-    })
+    if (this._cursorStyle) {
+      this.ctx.setCursorStyle({
+        style: this._cursorStyle,
+        blinking: false,
+      })
+    }
     this.ctx.setCursorPosition(
       this.x + this._renderCursor.x + 1,
       this.y + this._renderCursor.y + 1,

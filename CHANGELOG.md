@@ -2,6 +2,9 @@
 
 ## 1.4.8
 
+- Preserve the terminal's native cursor style when `cursorStyle` is not set
+  - `cursorStyle` now defaults to `undefined` instead of `"block"`, so `setCursorStyle()` is only called when an explicit style is requested
+  - Previously the default `"block"` would override the user's terminal cursor preference (e.g. line/bar) on every render frame
 - Respect focus state when rendering terminal cursor via the cursor API
   - When `focusable` is set, cursor rendering is gated on `_focused` so only the focused component claims the terminal cursor (e.g. an unfocused ghostty-terminal alongside a focused textarea won't position the cursor in the wrong pane)
   - Added `focus()` / `blur()` overrides matching opentui's `EditBufferRenderable` pattern
