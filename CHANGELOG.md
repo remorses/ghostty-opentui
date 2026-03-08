@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.8
+
+- Fix `ghostty-terminal` block cursor appearing too wide in the first and last screen columns
+  - `GhosttyTerminalRenderable` now renders the live cursor through the terminal cursor API instead of painting it into `StyledText`
+  - Prevents edge-column cursor background bleed while keeping the existing `terminalDataToStyledText(...)` API unchanged
+  - Added a regression test that verifies cursor rendering goes through `setCursorStyle(...)` / `setCursorPosition(...)`
+
 ## 1.4.7
 
 - Fix cursor not visually advancing when positioned beyond line content
