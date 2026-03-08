@@ -478,6 +478,72 @@ Line3
     expect(positionCalls).toContainEqual([0, 0, false])
   })
 
+  it("should pass through terminal bar cursor style as 'line' when cursorStyle is unset", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    // CSI 6 SP q = DECSCUSR steady bar
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"hello\x1b[6 q"}
+        cols={10}
+        rows={1}
+        showCursor
+        style={{ width: 10, height: 1 }}
+      />,
+      { width: 10, height: 1 }
+    )
+
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    // Ghostty "bar" maps to opentui "line"
+    expect(styleCalls).toContainEqual({ style: "line", blinking: false })
+  })
+
+
+  it("should override terminal cursor style when cursorStyle is explicitly set", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    // Terminal sets bar via DECSCUSR, but cursorStyle prop forces block
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"hello\x1b[6 q"}
+        cols={10}
+        rows={1}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 10, height: 1 }}
+      />,
+      { width: 10, height: 1 }
+    )
+
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    // Explicit cursorStyle="block" should override terminal's bar
+    expect(styleCalls).toContainEqual({ style: "block", blinking: false })
+  })
+
   describe("trimEnd", () => {
     it("should keep trailing empty lines without trimEnd", async () => {
       const ansi = "Line 1\nLine 2"

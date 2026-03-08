@@ -2,6 +2,12 @@
 
 ## 1.4.8
 
+- Pass through cursor style from inner applications via DECSCUSR escape sequences
+  - The Ghostty terminal parser's `cursor_style` is now included in the JSON output and mapped to opentui cursor styles (`bar` → `line`, `underline` → `underline`, `block`/`block_hollow` → `block`)
+  - When `cursorStyle` prop is omitted, `setCursorStyle()` uses the style from the running application (e.g. vim sets underline, shell sets bar)
+  - When `cursorStyle` prop is explicitly set, it overrides the terminal's native style
+  - Added `focusable` option to `GhosttyTerminalOptions` for non-JSX construction
+  - Added tests for cursor style passthrough and override behavior
 - Preserve the terminal's native cursor style when `cursorStyle` is not set
   - `cursorStyle` now defaults to `undefined` instead of `"block"`, so `setCursorStyle()` is only called when an explicit style is requested
   - Previously the default `"block"` would override the user's terminal cursor preference (e.g. line/bar) on every render frame

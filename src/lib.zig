@@ -162,6 +162,7 @@ pub fn writeJsonOutput(
     try writer.print("\"cols\":{},\"rows\":{},", .{ screen.pages.cols, screen.pages.rows });
     try writer.print("\"cursor\":[{},{}],", .{ screen.cursor.x, screen.cursor.y });
     try writer.print("\"cursorVisible\":{},", .{ cursor_visible });
+    try writer.print("\"cursorStyle\":\"{s}\",", .{ @tagName(screen.cursor.cursor_style) });
     try writer.print("\"offset\":{},\"totalLines\":{},", .{ offset, total_lines });
     try writer.writeAll("\"lines\":[");
 
