@@ -548,7 +548,9 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   }
 
   protected override onRemove(): void {
-    this.hideTerminalCursor()
+    if (this._focused || !this._focusable) {
+      this.hideTerminalCursor()
+    }
   }
 
   private hideTerminalCursor(): void {
@@ -556,7 +558,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   }
 
   private renderTerminalCursor(): void {
-    if (!this._renderCursor.visible) {
+    if (!this._renderCursor.visible || (this._focusable && !this._focused)) {
       this.hideTerminalCursor()
       return
     }
@@ -570,6 +572,17 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       this.y + this._renderCursor.y + 1,
       true,
     )
+  }
+
+  override focus(): void {
+    super.focus()
+    this.requestRender()
+  }
+
+  override blur(): void {
+    super.blur()
+    this.hideTerminalCursor()
+    this.requestRender()
   }
 
   protected renderSelf(buffer: any): void {

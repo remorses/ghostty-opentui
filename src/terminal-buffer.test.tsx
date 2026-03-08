@@ -376,6 +376,108 @@ Line3
     expect(positionCalls).toContainEqual([1, 1, true])
   })
 
+  it("should not render cursor when focusable but not focused", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        focusable={true}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+    }
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    await renderOnce()
+
+    // Cursor should not be set when focusable but not focused
+    const visibleCalls = positionCalls.filter(([, , v]) => v === true)
+    expect(visibleCalls).toHaveLength(0)
+  })
+
+  it("should render cursor when focusable and focused", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        focusable={true}
+        focused={true}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+    }
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    await renderOnce()
+
+    expect(positionCalls).toContainEqual([1, 1, true])
+  })
+
+  it("should hide cursor on blur", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        focusable={true}
+        focused={true}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    await renderOnce()
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+    }
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    ref.current!.blur()
+
+    expect(positionCalls).toContainEqual([0, 0, false])
+  })
+
   describe("trimEnd", () => {
     it("should keep trailing empty lines without trimEnd", async () => {
       const ansi = "Line 1\nLine 2"
