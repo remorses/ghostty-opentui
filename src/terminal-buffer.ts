@@ -298,7 +298,7 @@ export interface GhosttyTerminalOptions extends TextBufferOptions {
    */
   showCursor?: boolean
   /**
-   * Cursor style: 'block' (inverts colors) or 'underline'. Defaults to 'block'.
+   * Cursor style: 'block' or 'underline'. Defaults to 'block'.
    */
   cursorStyle?: "block" | "underline"
 }
@@ -317,6 +317,11 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   private _lineCount: number = 0
   private _showCursor: boolean = false
   private _cursorStyle: "block" | "underline" = "block"
+  private _renderCursor = {
+    x: 0,
+    y: 0,
+    visible: false,
+  }
   
   // Persistent terminal support
   private _persistent: boolean = false
@@ -542,6 +547,31 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     super.destroy()
   }
 
+  protected override onRemove(): void {
+    this.hideTerminalCursor()
+  }
+
+  private hideTerminalCursor(): void {
+    this.ctx.setCursorPosition(0, 0, false)
+  }
+
+  private renderTerminalCursor(): void {
+    if (!this._renderCursor.visible) {
+      this.hideTerminalCursor()
+      return
+    }
+
+    this.ctx.setCursorStyle({
+      style: this._cursorStyle,
+      blinking: false,
+    })
+    this.ctx.setCursorPosition(
+      this.x + this._renderCursor.x + 1,
+      this.y + this._renderCursor.y + 1,
+      true,
+    )
+  }
+
   protected renderSelf(buffer: any): void {
     if (this._ansiDirty) {
       let data: TerminalData
@@ -570,18 +600,16 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
         }
       }
       
-      // Build cursor info if enabled
-      // data.cursor[1] is screen-relative (0..rows-1), but data.lines may include
-      // scrollback lines. Adjust Y to index into data.lines correctly. (issue #4)
-      const cursor = this._showCursor ? {
-        x: data.cursor[0],
-        y: Math.max(0, (data.totalLines - data.rows) + data.cursor[1] - data.offset),
-        style: this._cursorStyle,
-      } : undefined
-      
-      const styledText = terminalDataToStyledText(data, this._highlights, cursor)
-      this.textBuffer.setStyledText(styledText)
+      this.textBuffer.setStyledText(terminalDataToStyledText(data, this._highlights))
       this.updateTextInfo()
+      if (this._showCursor) {
+        const cursorY = Math.max(0, (data.totalLines - data.rows) + data.cursor[1] - data.offset)
+        this._renderCursor.x = data.cursor[0]
+        this._renderCursor.y = cursorY
+        this._renderCursor.visible = data.cursorVisible && cursorY < data.lines.length
+      } else {
+        this._renderCursor.visible = false
+      }
       
       // Update line count based on actual rendered lines
       const lineInfo = this.textBufferView.logicalLineInfo
@@ -590,6 +618,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       this._ansiDirty = false
     }
     super.renderSelf(buffer)
+    this.renderTerminalCursor()
   }
 
   /**

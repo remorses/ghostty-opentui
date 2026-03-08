@@ -334,6 +334,48 @@ Line3
 `)
   })
 
+  it("should render the cursor via terminal cursor APIs instead of StyledText", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce, captureCharFrame } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    expect(captureCharFrame()).toBe("ABCDE\n")
+    expect(styleCalls).toContainEqual({ style: "block", blinking: false })
+    expect(positionCalls).toContainEqual([1, 1, true])
+  })
+
   describe("trimEnd", () => {
     it("should keep trailing empty lines without trimEnd", async () => {
       const ansi = "Line 1\nLine 2"
