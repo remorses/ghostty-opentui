@@ -9,7 +9,7 @@ Fast ANSI/VT terminal parser powered by [Ghostty's](https://github.com/ghostty-o
 - **TUI Viewer** - Interactive terminal viewer built with [opentui](https://github.com/sst/opentui)
 - **JSON output** - Compact format with merged spans for rendering
 - **Plain text output** - Strip ANSI codes for LLM/text processing
-- **Screenshot rendering** - Export terminal output to PNG/JPEG/WebP images via [takumi-rs](https://github.com/anthropics/takumi-rs)
+- **Screenshot rendering** - Export terminal output to PNG/JPEG/WebP images via [takumi-rs](https://github.com/kane50613/takumi)
 - **N-API** - Native Node.js addon using [napigen](https://github.com/cztomsik/napigen) for seamless integration
 
 ## Installation
@@ -265,7 +265,7 @@ const styledText = terminalDataToStyledText(data, highlights)
 
 ### Screenshot / Image Rendering
 
-Render terminal output to PNG, JPEG, or WebP images using [takumi-rs](https://github.com/anthropics/takumi-rs). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment.
+Render terminal output to PNG, JPEG, or WebP images using [takumi-rs](https://github.com/kane50613/takumi). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment.
 
 ```typescript
 import { ptyToJson } from "ghostty-opentui"
