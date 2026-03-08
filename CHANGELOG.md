@@ -2,6 +2,11 @@
 
 ## 1.4.8
 
+- Respect focus state when rendering terminal cursor via the cursor API
+  - When `focusable` is set, cursor rendering is gated on `_focused` so only the focused component claims the terminal cursor (e.g. an unfocused ghostty-terminal alongside a focused textarea won't position the cursor in the wrong pane)
+  - Added `focus()` / `blur()` overrides matching opentui's `EditBufferRenderable` pattern
+  - Non-focusable instances (the default) are unaffected and continue to show the cursor unconditionally
+  - Added tests for focused, unfocused, and blur cursor behavior
 - Fix `ghostty-terminal` block cursor appearing too wide in the first and last screen columns
   - `GhosttyTerminalRenderable` now renders the live cursor through the terminal cursor API instead of painting it into `StyledText`
   - Prevents edge-column cursor background bleed while keeping the existing `terminalDataToStyledText(...)` API unchanged
