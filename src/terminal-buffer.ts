@@ -298,9 +298,15 @@ export interface GhosttyTerminalOptions extends TextBufferOptions {
    */
   showCursor?: boolean
   /**
-   * Cursor style: 'block' (inverts colors) or 'underline'. Defaults to 'block'.
+   * Cursor style: 'block' or 'underline'. When omitted, the terminal's
+   * native cursor style is preserved (e.g. bar set via DECSCUSR).
    */
   cursorStyle?: "block" | "underline"
+  /**
+   * Whether this component participates in focus management.
+   * When true, cursor rendering is gated on focus state.
+   */
+  focusable?: boolean
 }
 
 /** @deprecated Use GhosttyTerminalOptions instead */
@@ -316,7 +322,13 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
   private _ansiDirty: boolean = false
   private _lineCount: number = 0
   private _showCursor: boolean = false
-  private _cursorStyle: "block" | "underline" = "block"
+  private _cursorStyle: "block" | "underline" | undefined = undefined
+  private _renderCursor = {
+    x: 0,
+    y: 0,
+    visible: false,
+    style: "default" as "default" | "block" | "line" | "underline",
+  }
   
   // Persistent terminal support
   private _persistent: boolean = false
@@ -337,8 +349,14 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     this._highlights = options.highlights
     this._persistent = options.persistent ?? false
     this._showCursor = options.showCursor ?? false
-    this._cursorStyle = options.cursorStyle ?? "block"
-    
+    this._cursorStyle = options.cursorStyle
+
+    // TextBufferRenderable doesn't read options.focusable (only BoxRenderable does),
+    // so we need to read it ourselves.
+    if (options.focusable) {
+      this._focusable = true
+    }
+
     // Initialize persistent terminal if enabled
     if (this._persistent && hasPersistentTerminalSupport()) {
       this._persistentTerminal = new PersistentTerminal({
@@ -408,11 +426,11 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     }
   }
 
-  get cursorStyle(): "block" | "underline" {
+  get cursorStyle(): "block" | "underline" | undefined {
     return this._cursorStyle
   }
 
-  set cursorStyle(value: "block" | "underline") {
+  set cursorStyle(value: "block" | "underline" | undefined) {
     if (this._cursorStyle !== value) {
       this._cursorStyle = value
       this._ansiDirty = true
@@ -542,6 +560,44 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     super.destroy()
   }
 
+  protected override onRemove(): void {
+    if (this._focused || !this._focusable) {
+      this.hideTerminalCursor()
+    }
+  }
+
+  private hideTerminalCursor(): void {
+    this.ctx.setCursorPosition(0, 0, false)
+  }
+
+  private renderTerminalCursor(): void {
+    if (!this._renderCursor.visible || (this._focusable && !this._focused)) {
+      return
+    }
+
+    const style = this._cursorStyle ?? this._renderCursor.style
+    this.ctx.setCursorStyle({
+      style,
+      blinking: false,
+    })
+    this.ctx.setCursorPosition(
+      this.x + this._renderCursor.x + 1,
+      this.y + this._renderCursor.y + 1,
+      true,
+    )
+  }
+
+  override focus(): void {
+    super.focus()
+    this.requestRender()
+  }
+
+  override blur(): void {
+    super.blur()
+    this.hideTerminalCursor()
+    this.requestRender()
+  }
+
   protected renderSelf(buffer: any): void {
     if (this._ansiDirty) {
       let data: TerminalData
@@ -570,18 +626,20 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
         }
       }
       
-      // Build cursor info if enabled
-      // data.cursor[1] is screen-relative (0..rows-1), but data.lines may include
-      // scrollback lines. Adjust Y to index into data.lines correctly. (issue #4)
-      const cursor = this._showCursor ? {
-        x: data.cursor[0],
-        y: Math.max(0, (data.totalLines - data.rows) + data.cursor[1] - data.offset),
-        style: this._cursorStyle,
-      } : undefined
-      
-      const styledText = terminalDataToStyledText(data, this._highlights, cursor)
-      this.textBuffer.setStyledText(styledText)
+      this.textBuffer.setStyledText(terminalDataToStyledText(data, this._highlights))
       this.updateTextInfo()
+      if (this._showCursor) {
+        const cursorY = Math.max(0, (data.totalLines - data.rows) + data.cursor[1] - data.offset)
+        this._renderCursor.x = data.cursor[0]
+        this._renderCursor.y = cursorY
+        this._renderCursor.visible = data.cursorVisible && cursorY < data.lines.length
+        // Map Ghostty cursor style names to opentui names
+        // "bar" → "line", "default" preserved as "default" (→ \x1b[0 q, native cursor)
+        const ts = data.cursorStyle
+        this._renderCursor.style = ts === "default" ? "default" : ts === "bar" ? "line" : ts === "underline" ? "underline" : "block"
+      } else {
+        this._renderCursor.visible = false
+      }
       
       // Update line count based on actual rendered lines
       const lineInfo = this.textBufferView.logicalLineInfo
@@ -590,6 +648,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       this._ansiDirty = false
     }
     super.renderSelf(buffer)
+    this.renderTerminalCursor()
   }
 
   /**

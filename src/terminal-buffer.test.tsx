@@ -334,6 +334,248 @@ Line3
 `)
   })
 
+  it("should render the cursor via terminal cursor APIs instead of StyledText", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce, captureCharFrame } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    expect(captureCharFrame()).toBe("ABCDE\n")
+    expect(styleCalls).toContainEqual({ style: "block", blinking: false })
+    expect(positionCalls).toContainEqual([1, 1, true])
+  })
+
+  it("should not render cursor when focusable but not focused", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        focusable={true}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+    }
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    await renderOnce()
+
+    // Cursor should not be set when focusable but not focused
+    const visibleCalls = positionCalls.filter(([, , v]) => v === true)
+    expect(visibleCalls).toHaveLength(0)
+  })
+
+  it("should render cursor when focusable and focused", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        focusable={true}
+        focused={true}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+    }
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    await renderOnce()
+
+    expect(positionCalls).toContainEqual([1, 1, true])
+  })
+
+  it("should hide cursor on blur", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"ABCDE\x1b[1G"}
+        cols={5}
+        rows={1}
+        focusable={true}
+        focused={true}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 5, height: 1 }}
+      />,
+      { width: 5, height: 1 }
+    )
+
+    await renderOnce()
+
+    const positionCalls: Array<[number, number, boolean | undefined]> = []
+    const ctx = ref.current!.ctx as {
+      setCursorPosition: (x: number, y: number, visible?: boolean) => void
+    }
+    const originalSetCursorPosition = ctx.setCursorPosition.bind(ctx)
+    ctx.setCursorPosition = (x, y, visible) => {
+      positionCalls.push([x, y, visible])
+      originalSetCursorPosition(x, y, visible)
+    }
+
+    ref.current!.blur()
+
+    expect(positionCalls).toContainEqual([0, 0, false])
+  })
+
+  it("should use 'default' cursor style when no DECSCUSR received and cursorStyle unset", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    // No DECSCUSR in the ANSI content
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"hello"}
+        cols={10}
+        rows={1}
+        showCursor
+        style={{ width: 10, height: 1 }}
+      />,
+      { width: 10, height: 1 }
+    )
+
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    // No DECSCUSR → "default" style (preserves outer terminal's native cursor)
+    expect(styleCalls).toContainEqual({ style: "default", blinking: false })
+  })
+
+  it("should pass through terminal bar cursor style as 'line' when cursorStyle is unset", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    // CSI 6 SP q = DECSCUSR steady bar
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"hello\x1b[6 q"}
+        cols={10}
+        rows={1}
+        showCursor
+        style={{ width: 10, height: 1 }}
+      />,
+      { width: 10, height: 1 }
+    )
+
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    // Ghostty "bar" maps to opentui "line"
+    expect(styleCalls).toContainEqual({ style: "line", blinking: false })
+  })
+
+
+  it("should override terminal cursor style when cursorStyle is explicitly set", async () => {
+    const ref = { current: null as GhosttyTerminalRenderable | null }
+
+    // Terminal sets bar via DECSCUSR, but cursorStyle prop forces block
+    const { renderOnce } = await testRender(
+      <ghostty-terminal
+        ref={(r: GhosttyTerminalRenderable) => { ref.current = r }}
+        ansi={"hello\x1b[6 q"}
+        cols={10}
+        rows={1}
+        showCursor
+        cursorStyle="block"
+        style={{ width: 10, height: 1 }}
+      />,
+      { width: 10, height: 1 }
+    )
+
+    const styleCalls: Array<{ style: string; blinking: boolean }> = []
+    const ctx = ref.current!.ctx as {
+      setCursorStyle: (options: { style: string; blinking: boolean }) => void
+    }
+    const originalSetCursorStyle = ctx.setCursorStyle.bind(ctx)
+    ctx.setCursorStyle = (options) => {
+      styleCalls.push(options)
+      originalSetCursorStyle(options)
+    }
+
+    await renderOnce()
+
+    // Explicit cursorStyle="block" should override terminal's bar
+    expect(styleCalls).toContainEqual({ style: "block", blinking: false })
+  })
+
   describe("trimEnd", () => {
     it("should keep trailing empty lines without trimEnd", async () => {
       const ansi = "Line 1\nLine 2"

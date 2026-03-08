@@ -148,6 +148,7 @@ pub fn writeJsonOutput(
     t: *ghostty_vt.Terminal,
     offset: usize,
     limit: ?usize,
+    cursor_style_set: bool,
 ) !void {
     const screen = t.screens.active;
     const palette = &t.colors.palette.current;
@@ -157,11 +158,20 @@ pub fn writeJsonOutput(
 
     // Check if cursor is visible (DECTCEM mode - DEC text cursor enable mode)
     const cursor_visible = t.modes.get(.cursor_visible);
-    
+
+    // If the inner application explicitly set a cursor style via DECSCUSR,
+    // report the actual style. Otherwise report "default" so the consumer
+    // can preserve the outer terminal's native cursor.
+    const cursor_style_name: []const u8 = if (cursor_style_set)
+        @tagName(screen.cursor.cursor_style)
+    else
+        "default";
+
     try writer.writeAll("{");
     try writer.print("\"cols\":{},\"rows\":{},", .{ screen.pages.cols, screen.pages.rows });
     try writer.print("\"cursor\":[{},{}],", .{ screen.cursor.x, screen.cursor.y });
     try writer.print("\"cursorVisible\":{},", .{ cursor_visible });
+    try writer.print("\"cursorStyle\":\"{s}\",", .{cursor_style_name});
     try writer.print("\"offset\":{},\"totalLines\":{},", .{ offset, total_lines });
     try writer.writeAll("\"lines\":[");
 
@@ -310,6 +320,11 @@ const PersistentTerminal = struct {
     /// This is critical for handling ANSI escape sequences that may be split
     /// across multiple data chunks from the PTY.
     stream: ?ReadonlyStream,
+    /// Whether the inner application has explicitly set a cursor style via
+    /// DECSCUSR. When false, the cursor style is still the VT default (block)
+    /// and consumers should treat it as "default" (preserve the outer
+    /// terminal's native cursor).
+    cursor_style_set: bool = false,
 
     pub fn init(alloc: std.mem.Allocator, cols: u16, rows: u16) !PersistentTerminal {
         var terminal = try ghostty_vt.Terminal.init(alloc, .{
@@ -344,10 +359,19 @@ const PersistentTerminal = struct {
     }
 
     pub fn feed(self: *PersistentTerminal, data: []const u8) !void {
+        const style_before = self.terminal.screens.active.cursor.cursor_style;
+
         // Use the persistent stream to maintain parser state across calls.
         // This ensures that escape sequences split across multiple chunks
         // are parsed correctly.
         try self.stream.?.nextSlice(data);
+
+        // Detect if the inner application sent a DECSCUSR to change cursor style.
+        if (!self.cursor_style_set) {
+            if (self.terminal.screens.active.cursor.cursor_style != style_before) {
+                self.cursor_style_set = true;
+            }
+        }
     }
 
     /// Returns true if the parser is in ground state, meaning all escape
@@ -365,6 +389,7 @@ const PersistentTerminal = struct {
 
     pub fn reset(self: *PersistentTerminal) void {
         self.terminal.fullReset();
+        self.cursor_style_set = false;
         // Recreate the stream to reset parser state
         if (self.stream) |*s| {
             s.deinit();
@@ -474,7 +499,7 @@ fn getTerminalJson(id: u32, offset: u32, limit: u32) ![]const u8 {
     const lim: ?usize = if (limit == 0) null else @intCast(limit);
 
     var output: std.ArrayListAligned(u8, null) = .empty;
-    try writeJsonOutput(output.writer(alloc), &term.terminal, @intCast(offset), lim);
+    try writeJsonOutput(output.writer(alloc), &term.terminal, @intCast(offset), lim, term.cursor_style_set);
 
     return output.items;
 }
@@ -549,6 +574,8 @@ fn ptyToJson(input: []const u8, cols: u32, rows: u32, offset: u32, limit: u32) !
     var stream = t.vtStream();
     defer stream.deinit();
 
+    const style_before = t.screens.active.cursor.cursor_style;
+
     // When limit is set, use chunked parsing with early exit
     // This allows us to stop parsing once we have enough lines
     if (lim) |line_limit| {
@@ -574,8 +601,10 @@ fn ptyToJson(input: []const u8, cols: u32, rows: u32, offset: u32, limit: u32) !
         try stream.nextSlice(input);
     }
 
+    const cursor_style_set = t.screens.active.cursor.cursor_style != style_before;
+
     var output: std.ArrayListAligned(u8, null) = .empty;
-    try writeJsonOutput(output.writer(alloc), &t, @intCast(offset), lim);
+    try writeJsonOutput(output.writer(alloc), &t, @intCast(offset), lim, cursor_style_set);
 
     return output.items;
 }
@@ -681,7 +710,7 @@ test "basic JSON output" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null, false);
 
     const json = output.items;
     try testing.expect(std.mem.indexOf(u8, json, "\"cols\":80") != null);
@@ -867,7 +896,7 @@ test "PersistentTerminal preserves state across feeds" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &term.terminal, 0, null);
+    try writeJsonOutput(output.writer(alloc), &term.terminal, 0, null, false);
 
     const json = output.items;
     try testing.expect(std.mem.indexOf(u8, json, "Green Text") != null);
@@ -909,7 +938,7 @@ test "normal text does not get trailing padding" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null, false);
 
     const json = output.items;
     // Should have "Hello" with width 5, NOT padded to 80
@@ -932,7 +961,7 @@ test "background color with EL extends to full line width" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null, false);
 
     const json = output.items;
 
