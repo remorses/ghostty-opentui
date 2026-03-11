@@ -148,7 +148,6 @@ pub fn writeJsonOutput(
     t: *ghostty_vt.Terminal,
     offset: usize,
     limit: ?usize,
-    alloc: std.mem.Allocator,
 ) !void {
     const screen = t.screens.active;
     const palette = &t.colors.palette.current;
@@ -165,10 +164,6 @@ pub fn writeJsonOutput(
     try writer.print("\"cursorVisible\":{},", .{ cursor_visible });
     try writer.print("\"offset\":{},\"totalLines\":{},", .{ offset, total_lines });
     try writer.writeAll("\"lines\":[");
-
-    // Track which lines are soft-wrapped for the wrappedLines array
-    var wrap_flags: std.ArrayListAligned(bool, null) = .empty;
-    defer wrap_flags.deinit(alloc);
 
     var text_buf: [4096]u8 = undefined;
     var row_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
@@ -189,8 +184,6 @@ pub fn writeJsonOutput(
         try writer.writeByte('[');
 
         const cells = pin.cells(.all);
-        const row = pin.rowAndCell().row;
-        try wrap_flags.append(alloc, row.wrap);
 
         // First pass: find the last column with actual content (non-null codepoint)
         // This allows us to trim trailing spaces while preserving internal spaces (e.g., from tabs)
@@ -287,12 +280,24 @@ pub fn writeJsonOutput(
         output_idx += 1;
     }
 
-    try writer.writeAll("],\"wrappedLines\":");
-    // Write wrappedLines as a JSON array of booleans
-    try writer.writeByte('[');
-    for (wrap_flags.items, 0..) |is_wrapped, i| {
-        if (i > 0) try writer.writeByte(',');
-        try writer.writeAll(if (is_wrapped) "true" else "false");
+    try writer.writeAll("],\"wrappedLines\":[");
+    // Second pass: emit per-line soft-wrap flags
+    var wrap_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
+    var wrap_row_idx: usize = 0;
+    var wrap_output_idx: usize = 0;
+    while (wrap_iter.next()) |wrap_pin| {
+        if (wrap_row_idx < offset) {
+            wrap_row_idx += 1;
+            continue;
+        }
+        if (limit) |lim| {
+            if (wrap_output_idx >= lim) break;
+        }
+        if (wrap_output_idx > 0) try writer.writeByte(',');
+        const row = wrap_pin.rowAndCell().row;
+        try writer.writeAll(if (row.wrap) "true" else "false");
+        wrap_row_idx += 1;
+        wrap_output_idx += 1;
     }
     try writer.writeAll("]}");
 }
@@ -488,7 +493,7 @@ fn getTerminalJson(id: u32, offset: u32, limit: u32) ![]const u8 {
     const lim: ?usize = if (limit == 0) null else @intCast(limit);
 
     var output: std.ArrayListAligned(u8, null) = .empty;
-    try writeJsonOutput(output.writer(alloc), &term.terminal, @intCast(offset), lim, alloc);
+    try writeJsonOutput(output.writer(alloc), &term.terminal, @intCast(offset), lim);
 
     return output.items;
 }
@@ -592,7 +597,7 @@ fn ptyToJson(input: []const u8, cols: u32, rows: u32, offset: u32, limit: u32) !
     }
 
     var output: std.ArrayListAligned(u8, null) = .empty;
-    try writeJsonOutput(output.writer(alloc), &t, @intCast(offset), lim, alloc);
+    try writeJsonOutput(output.writer(alloc), &t, @intCast(offset), lim);
 
     return output.items;
 }
@@ -698,7 +703,7 @@ test "basic JSON output" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null, alloc);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
 
     const json = output.items;
     try testing.expect(std.mem.indexOf(u8, json, "\"cols\":80") != null);
@@ -884,7 +889,7 @@ test "PersistentTerminal preserves state across feeds" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &term.terminal, 0, null, alloc);
+    try writeJsonOutput(output.writer(alloc), &term.terminal, 0, null);
 
     const json = output.items;
     try testing.expect(std.mem.indexOf(u8, json, "Green Text") != null);
@@ -926,7 +931,7 @@ test "normal text does not get trailing padding" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null, alloc);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
 
     const json = output.items;
     // Should have "Hello" with width 5, NOT padded to 80
@@ -949,7 +954,7 @@ test "background color with EL extends to full line width" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null, alloc);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
 
     const json = output.items;
 
@@ -1025,7 +1030,7 @@ test "writeJsonOutput includes wrappedLines array" {
     var output: std.ArrayListAligned(u8, null) = .empty;
     defer output.deinit(alloc);
 
-    try writeJsonOutput(output.writer(alloc), &t, 0, null, alloc);
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
 
     const json = output.items;
     // First two rows are soft-wrapped (wrap=true), third is not, fourth is not
