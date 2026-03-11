@@ -498,7 +498,8 @@ fn getTerminalJson(id: u32, offset: u32, limit: u32) ![]const u8 {
     return output.items;
 }
 
-/// Get plain text output from a persistent terminal
+/// Get plain text output from a persistent terminal.
+/// Soft-wrapped lines are unwrapped so only real newlines appear.
 fn getTerminalText(id: u32) ![]const u8 {
     terminals_mutex.lock();
     defer terminals_mutex.unlock();
@@ -729,7 +730,7 @@ test "ptyToText strips ANSI and returns plain text" {
     var builder: std.Io.Writer.Allocating = .init(alloc);
     defer builder.deinit();
 
-    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .{ .emit = .plain, .unwrap = true });
+    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .plain);
     try fmt.format(&builder.writer);
 
     const output = builder.writer.buffered();
@@ -753,7 +754,7 @@ test "ptyToText handles multiline with ANSI" {
     var builder: std.Io.Writer.Allocating = .init(alloc);
     defer builder.deinit();
 
-    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .{ .emit = .plain, .unwrap = true });
+    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .plain);
     try fmt.format(&builder.writer);
 
     const output = builder.writer.buffered();
@@ -1033,8 +1034,6 @@ test "writeJsonOutput includes wrappedLines array" {
     try writeJsonOutput(output.writer(alloc), &t, 0, null);
 
     const json = output.items;
-    // First two rows are soft-wrapped (wrap=true), third is not, fourth is not
-    // First two rows are soft-wrapped (wrap=true), third row has hard newline, fourth has content
-    // Remaining rows up to terminal height are empty (not wrapped)
+    // First two rows are soft-wrapped, rest have hard newlines or are empty
     try testing.expect(std.mem.indexOf(u8, json, "\"wrappedLines\":[true,true,false,false") != null);
 }
