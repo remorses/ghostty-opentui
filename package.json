@@ -1,6 +1,6 @@
 {
   "name": "ghostty-opentui",
-  "version": "1.4.9",
+  "version": "1.4.10",
   "type": "module",
   "description": "Fast ANSI/VT terminal parser powered by Ghostty's Zig terminal emulation library",
   "scripts": {
@@ -73,6 +73,7 @@
     "@takumi-rs/helpers": "^0.65.0"
   },
   "dependencies": {
-    "strip-ansi": "^7.1.2"
+    "strip-ansi": "^7.1.2",
+    "wcwidth": "^1.0.1"
   }
 }
