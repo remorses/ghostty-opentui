@@ -190,6 +190,32 @@ describe("terminalDataToStyledText highlights", () => {
     )
     expect(highlightedChunk).toBeDefined()
   })
+
+  it("should place the cursor on the correct cell after a wide character", () => {
+    const data = ptyToJson("A東B\x1b[D", { cols: 80, rows: 24 })
+    const styled = terminalDataToStyledText(data, undefined, {
+      x: data.cursor[0],
+      y: data.cursor[1],
+      style: "block",
+    })
+
+    const firstNewline = styled.chunks.findIndex((chunk) => chunk.text === "\n")
+    const firstLineText = styled.chunks
+      .slice(0, firstNewline >= 0 ? firstNewline : undefined)
+      .map((chunk) => chunk.text)
+      .join("")
+    expect(firstLineText).toBe("A東B")
+
+    const cursorChunk = styled.chunks.find(
+      (c) => c.text === "B" && c.bg && rgbToHex(c.bg) === "#d4d4d4"
+    )
+    const trailingCursor = styled.chunks.find(
+      (c) => c.text === " " && c.bg && rgbToHex(c.bg) === "#d4d4d4"
+    )
+
+    expect(cursorChunk).toBeDefined()
+    expect(trailingCursor).toBeUndefined()
+  })
 })
 
 describe("ptyToText", () => {
