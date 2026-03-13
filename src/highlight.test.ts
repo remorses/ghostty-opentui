@@ -159,6 +159,24 @@ describe("terminalDataToStyledText with highlights", () => {
     expect(helloChunk).toBeDefined()
   })
 
+  test("should highlight text after a wide character using cell columns", () => {
+    const data = ptyToJson("A東B", { cols: 80, rows: 24 })
+    const highlights: HighlightRegion[] = [
+      { line: 0, start: 3, end: 4, backgroundColor: "#ff0000" },
+    ]
+
+    const styled = terminalDataToStyledText(data, highlights)
+    const highlightedB = styled.chunks.find(
+      (c) => c.text === "B" && toHex(c.bg) === "#ff0000"
+    )
+    const highlightedWide = styled.chunks.find(
+      (c) => c.text.includes("東") && toHex(c.bg) === "#ff0000"
+    )
+
+    expect(highlightedB).toBeDefined()
+    expect(highlightedWide).toBeUndefined()
+  })
+
   test("should handle multiple highlights on different lines", () => {
     const ansi = "first line\nsecond line\nthird line"
     const data = ptyToJson(ansi, { cols: 80, rows: 24 })
@@ -177,6 +195,18 @@ describe("terminalDataToStyledText with highlights", () => {
     )
     expect(firstChunk).toBeDefined()
     expect(thirdChunk).toBeDefined()
+  })
+
+  test("should apply cursor after highlight on the same line", () => {
+    const ansi = "hello world"
+    const data = ptyToJson(ansi, { cols: 80, rows: 24 })
+    const highlights: HighlightRegion[] = [
+      { line: 0, start: 0, end: 5, backgroundColor: "#ff0000" },
+    ]
+    // Cursor at column 6 (on "w") — after the highlight split
+    const styled = terminalDataToStyledText(data, highlights, { x: 6, y: 0, style: "block" })
+    const texts = styled.chunks.filter((c) => c.text !== "\n" && c.text !== " ").map((c) => c.text)
+    expect(texts.join("")).toContain("world")
   })
 
   test("should work with no highlights", () => {
