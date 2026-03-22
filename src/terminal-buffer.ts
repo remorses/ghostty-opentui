@@ -585,7 +585,9 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       
       // Update line count based on actual rendered lines
       const lineInfo = this.textBufferView.logicalLineInfo
-      this._lineCount = lineInfo.lineStarts.length
+      if (lineInfo) {
+        this._lineCount = lineInfo.lineStarts.length
+      }
       
       this._ansiDirty = false
     }
@@ -613,7 +615,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     // Get the line info which contains actual Y offsets for each line
     // This accounts for wrapping and actual text layout
     const lineInfo = this.textBufferView.logicalLineInfo
-    const lineStarts = lineInfo.lineStarts
+    const lineStarts = lineInfo?.lineStarts
     
     // If we have line start info, use it; otherwise fall back to simple calculation
     let lineYOffset = clampedLine
