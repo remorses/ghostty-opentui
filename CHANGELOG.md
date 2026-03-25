@@ -1,5 +1,30 @@
 # Changelog
 
+## 1.4.8
+
+- Report `"default"` cursor style when no DECSCUSR has been received
+  - Persistent terminals track whether the inner application has explicitly set a cursor style; stateless `ptyToJson` compares before/after parsing
+  - When no DECSCUSR was sent, JSON reports `cursorStyle: "default"` instead of `"block"`, which maps to opentui's `"default"` style (`\x1b[0 q` — preserve the outer terminal's native cursor)
+  - Prevents the Ghostty parser's VT default (`block`) from overriding the user's terminal cursor preference at the shell prompt
+- Pass through cursor style from inner applications via DECSCUSR escape sequences
+  - The Ghostty terminal parser's `cursor_style` is now included in the JSON output and mapped to opentui cursor styles (`bar` → `line`, `underline` → `underline`, `block`/`block_hollow` → `block`)
+  - When `cursorStyle` prop is omitted, `setCursorStyle()` uses the style from the running application (e.g. vim sets underline, shell sets bar)
+  - When `cursorStyle` prop is explicitly set, it overrides the terminal's native style
+  - Added `focusable` option to `GhosttyTerminalOptions` for non-JSX construction
+  - Added tests for cursor style passthrough and override behavior
+- Preserve the terminal's native cursor style when `cursorStyle` is not set
+  - `cursorStyle` now defaults to `undefined` instead of `"block"`, so `setCursorStyle()` is only called when an explicit style is requested
+  - Previously the default `"block"` would override the user's terminal cursor preference (e.g. line/bar) on every render frame
+- Respect focus state when rendering terminal cursor via the cursor API
+  - When `focusable` is set, cursor rendering is gated on `_focused` so only the focused component claims the terminal cursor (e.g. an unfocused ghostty-terminal alongside a focused textarea won't position the cursor in the wrong pane)
+  - Added `focus()` / `blur()` overrides matching opentui's `EditBufferRenderable` pattern
+  - Non-focusable instances (the default) are unaffected and continue to show the cursor unconditionally
+  - Added tests for focused, unfocused, and blur cursor behavior
+- Fix `ghostty-terminal` block cursor appearing too wide in the first and last screen columns
+  - `GhosttyTerminalRenderable` now renders the live cursor through the terminal cursor API instead of painting it into `StyledText`
+  - Prevents edge-column cursor background bleed while keeping the existing `terminalDataToStyledText(...)` API unchanged
+  - Added a regression test that verifies cursor rendering goes through `setCursorStyle(...)` / `setCursorPosition(...)`
+
 ## 1.4.7
 
 - Fix cursor not visually advancing when positioned beyond line content
