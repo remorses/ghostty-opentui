@@ -38,6 +38,15 @@ const TextAttributes = {
   STRIKETHROUGH: 1 << 7,
 }
 
+interface LineInfoWithStarts {
+  lineStarts?: number[]
+  lineStartCols?: number[]
+}
+
+function getLineStarts(lineInfo: LineInfoWithStarts): number[] {
+  return lineInfo.lineStarts ?? lineInfo.lineStartCols ?? []
+}
+
 function convertSpanToChunk(span: TerminalSpan): TextChunk {
   const { text, fg, bg, flags } = span
 
@@ -644,7 +653,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
       
       // Update line count based on actual rendered lines
       const lineInfo = this.textBufferView.logicalLineInfo
-      this._lineCount = lineInfo.lineStarts.length
+      this._lineCount = getLineStarts(lineInfo).length
       
       this._ansiDirty = false
     }
@@ -673,7 +682,7 @@ export class GhosttyTerminalRenderable extends TextBufferRenderable {
     // Get the line info which contains actual Y offsets for each line
     // This accounts for wrapping and actual text layout
     const lineInfo = this.textBufferView.logicalLineInfo
-    const lineStarts = lineInfo.lineStarts
+    const lineStarts = getLineStarts(lineInfo)
     
     // If we have line start info, use it; otherwise fall back to simple calculation
     let lineYOffset = clampedLine

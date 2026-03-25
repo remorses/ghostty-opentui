@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach } from "bun:test"
 import { createRoot, extend } from "@opentui/react"
 import { createTestRenderer, type TestRendererOptions } from "@opentui/core/testing"
-import { GhosttyTerminalRenderable } from "./terminal-buffer"
+import { GhosttyTerminalRenderable } from "./terminal-buffer.js"
 import { act } from "react"
 import type { ReactNode } from "react"
 
@@ -478,7 +478,7 @@ Line3
     expect(positionCalls).toContainEqual([0, 0, false])
   })
 
-  it("should use 'default' cursor style when no DECSCUSR received and cursorStyle unset", async () => {
+  it("should use block cursor style when no DECSCUSR received and cursorStyle unset", async () => {
     const ref = { current: null as GhosttyTerminalRenderable | null }
 
     // No DECSCUSR in the ANSI content
@@ -506,11 +506,10 @@ Line3
 
     await renderOnce()
 
-    // No DECSCUSR → "default" style (preserves outer terminal's native cursor)
-    expect(styleCalls).toContainEqual({ style: "default", blinking: false })
+    expect(styleCalls).toContainEqual({ style: "block", blinking: false })
   })
 
-  it("should pass through terminal bar cursor style as 'line' when cursorStyle is unset", async () => {
+  it("should keep block cursor style when DECSCUSR bar is received and cursorStyle is unset", async () => {
     const ref = { current: null as GhosttyTerminalRenderable | null }
 
     // CSI 6 SP q = DECSCUSR steady bar
@@ -538,8 +537,7 @@ Line3
 
     await renderOnce()
 
-    // Ghostty "bar" maps to opentui "line"
-    expect(styleCalls).toContainEqual({ style: "line", blinking: false })
+    expect(styleCalls).toContainEqual({ style: "block", blinking: false })
   })
 
 

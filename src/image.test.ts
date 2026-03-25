@@ -27,6 +27,10 @@ function saveImage(name: string, buffer: Buffer, ext: string = "png"): string {
   return path
 }
 
+function isCommandAvailable(command: string): boolean {
+  return Bun.which(command) !== null
+}
+
 beforeAll(() => {
   if (!existsSync(IMAGES_DIR)) {
     mkdirSync(IMAGES_DIR, { recursive: true })
@@ -302,7 +306,10 @@ async function spawnAndCapture(
 }
 
 describe("real command spawns", () => {
-  it("opencode — interactive TUI (snapshot after launch)", async () => {
+  const itIfOpencodeAvailable = isCommandAvailable("opencode") ? it : it.skip
+  const itIfClaudeAvailable = isCommandAvailable("claude") ? it : it.skip
+
+  itIfOpencodeAvailable("opencode — interactive TUI (snapshot after launch)", async () => {
     // opencode sends initial escape sequences at ~500ms, then renders UI at ~1500ms.
     // Need idleMs > 1000ms gap between first data and actual UI render.
     const data = await spawnAndCapture("opencode", [], {
@@ -318,7 +325,7 @@ describe("real command spawns", () => {
     saveImage("opencode", image)
   }, 15000)
 
-  it("opencode --help", async () => {
+  itIfOpencodeAvailable("opencode --help", async () => {
     const data = await spawnAndCapture("opencode", ["--help"], {
       cols: 100,
       rows: 40,
@@ -331,7 +338,7 @@ describe("real command spawns", () => {
     saveImage("opencode-help", image)
   }, 15000)
 
-  it("claude --help", async () => {
+  itIfClaudeAvailable("claude --help", async () => {
     const data = await spawnAndCapture("claude", ["--help"], {
       cols: 100,
       rows: 50,

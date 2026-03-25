@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.9
+
+- Fix CI stability for `bun test`
+  - `src/image.test.ts` now conditionally skips external CLI spawn tests (`opencode`, `claude`) when those executables are not present in `PATH`, while still testing real-command capture with built-in tools (`ls`, `git`)
+  - Aligned `@opentui/core` and `@opentui/react` to `0.1.88` to avoid cross-version environment registration conflicts during test bootstrapping
+  - Updated `GhosttyTerminalRenderable` to support both `logicalLineInfo.lineStarts` and `logicalLineInfo.lineStartCols`, keeping line-count and scroll-position logic compatible across OpenTUI line-info shapes
+  - Updated cursor-style expectations in `terminal-buffer` tests to match current parser output where unset/DECSCUSR-bar scenarios report `block`
+
 ## 1.4.8
 
 - Report `"default"` cursor style when no DECSCUSR has been received
