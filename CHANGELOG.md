@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.10
+
+- Fix wide-character cell widths being ignored in highlight and cursor rendering
+  - `applyHighlightsToLine` and `applyCursorToLine` now track positions using terminal cell widths instead of JS string length
+  - Text after double-width characters (CJK, etc.) can now be highlighted and cursored correctly
+  - Cell widths measured via `wcwidth` (new dependency), so this works in both Bun and Node.js
+  - `convertSpanToChunk` now preserves `span.width` as `cellWidth` on chunks
+
 ## 1.4.9
 
 - Fix CI stability for `bun test`

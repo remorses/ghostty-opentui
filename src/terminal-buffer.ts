@@ -7,9 +7,32 @@ import {
   type TextChunk,
 } from "@opentui/core"
 import { ptyToJson, PersistentTerminal, hasPersistentTerminalSupport, type TerminalData, type TerminalSpan, StyleFlags } from "./ffi.js"
+import wcwidth from "wcwidth"
 
 const DEFAULT_FG = RGBA.fromHex("#d4d4d4")
 const DEFAULT_BG = RGBA.fromHex("#1e1e1e")
+
+type WidthAwareChunk = TextChunk & {
+  cellWidth: number
+}
+
+function getChunkCellWidth(chunk: TextChunk): number {
+  return "cellWidth" in chunk && typeof (chunk as WidthAwareChunk).cellWidth === "number"
+    ? (chunk as WidthAwareChunk).cellWidth
+    : wcwidth(chunk.text)
+}
+
+function cellColToStringIndex(text: string, cellCol: number): number {
+  if (cellCol <= 0) return 0
+  let col = 0
+  let strIdx = 0
+  for (const ch of text) {
+    if (col >= cellCol) break
+    col += wcwidth(ch)
+    strIdx += ch.length
+  }
+  return strIdx
+}
 
 /**
  * Defines a region to highlight in the terminal output.
@@ -47,8 +70,8 @@ function getLineStarts(lineInfo: LineInfoWithStarts): number[] {
   return lineInfo.lineStarts ?? lineInfo.lineStartCols ?? []
 }
 
-function convertSpanToChunk(span: TerminalSpan): TextChunk {
-  const { text, fg, bg, flags } = span
+function convertSpanToChunk(span: TerminalSpan): WidthAwareChunk {
+  const { text, fg, bg, flags, width } = span
 
   let fgColor = fg ? RGBA.fromHex(fg) : DEFAULT_FG
   let bgColor = bg ? RGBA.fromHex(bg) : undefined
@@ -66,7 +89,7 @@ function convertSpanToChunk(span: TerminalSpan): TextChunk {
   if (flags & StyleFlags.STRIKETHROUGH) attributes |= TextAttributes.STRIKETHROUGH
   if (flags & StyleFlags.FAINT) attributes |= TextAttributes.DIM
 
-  return { __isChunk: true, text, fg: fgColor, bg: bgColor, attributes }
+  return { __isChunk: true, text, fg: fgColor, bg: bgColor, attributes, cellWidth: width }
 }
 
 /**
@@ -83,68 +106,56 @@ export function applyHighlightsToLine(
   let col = 0
 
   for (const chunk of chunks) {
+    const w = getChunkCellWidth(chunk)
     const chunkStart = col
-    const chunkEnd = col + chunk.text.length
+    const chunkEnd = col + w
 
     // Find all highlights that overlap with this chunk
-    const overlappingHighlights = highlights.filter(
-      (hl) => hl.start < chunkEnd && hl.end > chunkStart
-    )
+    const overlapping = highlights
+      .filter((hl) => hl.start < chunkEnd && hl.end > chunkStart)
+      .sort((a, b) => a.start - b.start)
 
-    if (overlappingHighlights.length === 0) {
-      // No highlights overlap this chunk
+    if (overlapping.length === 0) {
       result.push(chunk)
       col = chunkEnd
       continue
     }
 
-    // Process the chunk with highlights
-    let pos = 0
-    const text = chunk.text
+    // Split chunk at highlight boundaries
+    let cellPos = 0
 
-    // Sort highlights by start position
-    const sortedHighlights = [...overlappingHighlights].sort((a, b) => a.start - b.start)
+    for (const hl of overlapping) {
+      const hlStartLocal = Math.max(0, hl.start - chunkStart)
+      const hlEndLocal = Math.min(w, hl.end - chunkStart)
 
-    for (const hl of sortedHighlights) {
-      const hlStartInChunk = Math.max(0, hl.start - chunkStart)
-      const hlEndInChunk = Math.min(text.length, hl.end - chunkStart)
-
-      // Add text before highlight (if any)
-      if (pos < hlStartInChunk) {
-        result.push({
-          __isChunk: true,
-          text: text.slice(pos, hlStartInChunk),
-          fg: chunk.fg,
-          bg: chunk.bg,
-          attributes: chunk.attributes,
-        })
+      // Text before highlight
+      if (cellPos < hlStartLocal) {
+        const startStr = cellColToStringIndex(chunk.text, cellPos)
+        const endStr = cellColToStringIndex(chunk.text, hlStartLocal)
+        result.push({ ...chunk, text: chunk.text.slice(startStr, endStr), cellWidth: hlStartLocal - cellPos } as TextChunk)
       }
 
-      // Add highlighted text
-      if (hlStartInChunk < hlEndInChunk) {
-        const highlightedText = text.slice(hlStartInChunk, hlEndInChunk)
-        const displayText = hl.replaceWithX ? "x".repeat(highlightedText.length) : highlightedText
+      // Highlighted text
+      if (hlStartLocal < hlEndLocal) {
+        const startStr = cellColToStringIndex(chunk.text, hlStartLocal)
+        const endStr = cellColToStringIndex(chunk.text, hlEndLocal)
+        const hlText = chunk.text.slice(startStr, endStr)
+        const cellWidth = hlEndLocal - hlStartLocal
         result.push({
-          __isChunk: true,
-          text: displayText,
-          fg: chunk.fg,
+          ...chunk,
+          text: hl.replaceWithX ? "x".repeat(cellWidth) : hlText,
           bg: RGBA.fromHex(hl.backgroundColor),
-          attributes: chunk.attributes,
-        })
+          cellWidth,
+        } as TextChunk)
       }
 
-      pos = hlEndInChunk
+      cellPos = hlEndLocal
     }
 
-    // Add remaining text after last highlight
-    if (pos < text.length) {
-      result.push({
-        __isChunk: true,
-        text: text.slice(pos),
-        fg: chunk.fg,
-        bg: chunk.bg,
-        attributes: chunk.attributes,
-      })
+    // Text after last highlight
+    if (cellPos < w) {
+      const startStr = cellColToStringIndex(chunk.text, cellPos)
+      result.push({ ...chunk, text: chunk.text.slice(startStr), cellWidth: w - cellPos } as TextChunk)
     }
 
     col = chunkEnd
@@ -167,7 +178,9 @@ function makeCursorChunk(
   char: string,
   style: "block" | "underline",
   original?: TextChunk,
-): TextChunk {
+): WidthAwareChunk {
+  const cellWidth = Math.max(1, wcwidth(char))
+
   if (style === "block") {
     return {
       __isChunk: true,
@@ -175,6 +188,7 @@ function makeCursorChunk(
       fg: original?.bg || RGBA.fromHex("#1e1e1e"),
       bg: original?.fg || DEFAULT_FG,
       attributes: original?.attributes ?? 0,
+      cellWidth,
     }
   }
   return {
@@ -183,6 +197,7 @@ function makeCursorChunk(
     fg: original?.fg || DEFAULT_FG,
     bg: original?.bg,
     attributes: (original?.attributes ?? 0) | TextAttributes.UNDERLINE,
+    cellWidth,
   }
 }
 
@@ -196,13 +211,13 @@ function applyCursorToLine(
   cursorX: number,
   cursorStyle: "block" | "underline",
 ): TextChunk[] {
-  const totalLen = chunks.reduce((sum, c) => sum + c.text.length, 0)
+  const totalLen = chunks.reduce((sum, chunk) => sum + getChunkCellWidth(chunk), 0)
 
   // Cursor beyond line content - pad with spaces then append cursor
   if (cursorX >= totalLen) {
     const gap = cursorX - totalLen
     if (gap > 0) {
-      return [...chunks, { __isChunk: true, text: " ".repeat(gap), attributes: 0 } as TextChunk, makeCursorChunk(" ", cursorStyle)]
+      return [...chunks, { __isChunk: true, text: " ".repeat(gap), attributes: 0, cellWidth: gap } as WidthAwareChunk, makeCursorChunk(" ", cursorStyle)]
     }
     return [...chunks, makeCursorChunk(" ", cursorStyle)]
   }
@@ -212,22 +227,21 @@ function applyCursorToLine(
   let col = 0
 
   for (const chunk of chunks) {
-    const chunkEnd = col + chunk.text.length
+    const w = getChunkCellWidth(chunk)
+    const chunkEnd = col + w
 
     if (cursorX >= col && cursorX < chunkEnd) {
-      const pos = cursorX - col
+      const localCol = cursorX - col
+      const strIdx = cellColToStringIndex(chunk.text, localCol)
+      const cursorChar = String.fromCodePoint(chunk.text.codePointAt(strIdx)!)
+      const strEnd = strIdx + cursorChar.length
 
-      // Text before cursor
-      if (pos > 0) {
-        result.push({ ...chunk, text: chunk.text.slice(0, pos) })
+      if (strIdx > 0) {
+        result.push({ ...chunk, text: chunk.text.slice(0, strIdx) })
       }
-
-      // Cursor character
-      result.push(makeCursorChunk(chunk.text[pos], cursorStyle, chunk))
-
-      // Text after cursor
-      if (pos + 1 < chunk.text.length) {
-        result.push({ ...chunk, text: chunk.text.slice(pos + 1) })
+      result.push(makeCursorChunk(cursorChar, cursorStyle, chunk))
+      if (strEnd < chunk.text.length) {
+        result.push({ ...chunk, text: chunk.text.slice(strEnd) })
       }
     } else {
       result.push(chunk)
