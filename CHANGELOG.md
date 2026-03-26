@@ -7,6 +7,8 @@
   - Text after double-width characters (CJK, etc.) can now be highlighted and cursored correctly
   - Cell widths measured via `wcwidth` (new dependency), so this works in both Bun and Node.js
   - `convertSpanToChunk` now preserves `span.width` as `cellWidth` on chunks
+- Fix CI TypeScript build failure for `wcwidth` import
+  - Added `src/wcwidth.d.ts` module declaration so `bun run build` typechecks `import wcwidth from "wcwidth"` without implicit `any` errors
 
 ## 1.4.9
 
