@@ -1,11 +1,15 @@
 #!/usr/bin/env bun
-import { $ } from "bun"
-import fs from "fs"
-import path from "path"
+import childProcess from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
 
 const ROOT = path.resolve(import.meta.dir, "..")
 const DIST = path.join(ROOT, "dist")
 const ZIG_OUT = path.join(ROOT, "zig-out", "lib")
+const HOST_TARGET = `${os.platform()}-${os.arch()}`
+const HOMEBREW_ZIG = "/opt/homebrew/bin/zig"
+const ZIG_COMMAND = process.platform === "darwin" && fs.existsSync(HOMEBREW_ZIG) ? HOMEBREW_ZIG : "zig"
 
 interface Target {
   name: string
@@ -23,6 +27,27 @@ const TARGETS: Target[] = [
   { name: "win32-x64", zigTarget: "x86_64-windows-gnu" },
 ]
 
+function runCommand({ command, args, cwd }: { command: string; args: string[]; cwd: string }): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const child = childProcess.spawn(command, args, {
+      cwd,
+      stdio: "inherit",
+    })
+
+    child.on("error", (error) => {
+      reject(error)
+    })
+
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve()
+        return
+      }
+      reject(new Error(`${command} ${args.join(" ")} failed with code ${String(code)}`))
+    })
+  })
+}
+
 async function build(target: Target): Promise<boolean> {
   const targetDir = path.join(DIST, target.name)
   const nodeFile = path.join(targetDir, "ghostty-opentui.node")
@@ -32,13 +57,13 @@ async function build(target: Target): Promise<boolean> {
   // Clean zig-out before each build to avoid stale artifacts
   fs.rmSync(path.join(ROOT, "zig-out"), { recursive: true, force: true })
 
-  const args = ["-Doptimize=ReleaseFast"]
-  if (target.zigTarget) {
+  const args = ["build", "-Doptimize=ReleaseFast"]
+  if (target.name !== HOST_TARGET && target.zigTarget) {
     args.push(`-Dtarget=${target.zigTarget}`)
   }
 
   try {
-    await $`zig build ${args}`.cwd(ROOT)
+    await runCommand({ command: ZIG_COMMAND, args, cwd: ROOT })
 
     // Find the output file (might have different extensions on Windows)
     let srcFile = path.join(ZIG_OUT, "ghostty-opentui.node")
