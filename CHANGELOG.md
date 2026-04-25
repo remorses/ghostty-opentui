@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.11
+
+- Preserve full grapheme clusters in `writeJsonOutput`
+  - Cells flagged with `content_tag == .codepoint_grapheme` (ZWJ sequences, VS16 emoji, regional-indicator flag pairs, skin-tone modifiers) used to lose every codepoint past the first, because the exporter wrote only `cell.codepoint()` and never consulted `pin.grapheme(cell)`. Span `width` was correct but `text` was truncated, so consumers rendered just the leading codepoint where the user expected the full cluster.
+  - Cell text is now built via a new `appendCellText` helper that writes the base codepoint and then iterates `pin.grapheme(cell)` for any extras.
+  - Added a regression test covering VS16, ZWJ, and flag-pair input under mode 2027.
+
 ## 1.4.10
 
 - Fix wide-character cell widths being ignored in highlight and cursor rendering

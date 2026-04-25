@@ -86,6 +86,23 @@ describe("ptyToJson", () => {
     expect(result.rows).toBe(50)
   })
 
+  it("should preserve multi-codepoint grapheme clusters", () => {
+    const samples = [
+      { input: "♥️X", width: 3 },
+      { input: "👨‍👩‍👧‍👦X", width: 3 },
+      { input: "🇺🇸X", width: 3 },
+    ]
+
+    for (const { input, width } of samples) {
+      const result = ptyToJson(`\x1b[?2027h${input}`, { cols: 20, rows: 2 })
+      const text = result.lines[0].spans.map((s) => s.text).join("")
+      const cellWidth = result.lines[0].spans.reduce((sum, s) => sum + s.width, 0)
+
+      expect(text).toBe(input)
+      expect(cellWidth).toBe(width)
+    }
+  })
+
   it("should handle tab expansion correctly", () => {
     // Tab character followed by colored text
     // Tab should expand to spaces and be included in the span, not break it
