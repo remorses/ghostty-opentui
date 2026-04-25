@@ -122,6 +122,24 @@ fn writeColor(writer: anytype, rgb: ?color.RGB) !void {
     }
 }
 
+fn appendUtf8Codepoint(buf: []u8, text_len: *usize, cp: u21) void {
+    const len = std.unicode.utf8CodepointSequenceLength(cp) catch return;
+    if (text_len.* + len > buf.len) return;
+
+    _ = std.unicode.utf8Encode(cp, buf[text_len.*..]) catch return;
+    text_len.* += len;
+}
+
+fn appendCellText(buf: []u8, text_len: *usize, cell: *const pagepkg.Cell, pin: ghostty_vt.Pin, cp: u21) void {
+    appendUtf8Codepoint(buf, text_len, cp);
+
+    if (cell.content_tag != .codepoint_grapheme) return;
+    const grapheme = pin.grapheme(cell) orelse return;
+    for (grapheme) |extra_cp| {
+        appendUtf8Codepoint(buf, text_len, extra_cp);
+    }
+}
+
 /// Count total lines in terminal screen
 fn countLines(screen: *Screen) usize {
     var total: usize = 0;
@@ -264,11 +282,7 @@ pub fn writeJsonOutput(
             }
 
             const cp21: u21 = @intCast(cp);
-            const len = std.unicode.utf8CodepointSequenceLength(cp21) catch 1;
-            if (text_len + len <= text_buf.len) {
-                _ = std.unicode.utf8Encode(cp21, text_buf[text_len..]) catch 0;
-                text_len += len;
-            }
+            appendCellText(text_buf[0..], &text_len, cell, pin, cp21);
 
             span_len += if (cell.wide == .wide) 2 else 1;
         }
