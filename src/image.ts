@@ -141,6 +141,8 @@ async function getRenderer(fontPath?: string): Promise<import("@takumi-rs/core")
 
 /** Resolve path to the bundled JetBrains Mono Nerd TTF */
 function getBundledFontPath(): string {
+  const override = process.env["GHOSTTY_OPENTUI_FONT_PATH"]
+  if (override) return override
   // import.meta.dirname works in both bun and node ESM
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
   return join(dir, "..", "public", "jetbrains-mono-nerd.ttf")
@@ -148,6 +150,8 @@ function getBundledFontPath(): string {
 
 /** Resolve path to bundled fallback symbols font */
 function getBundledFallbackFontPath(): string {
+  const override = process.env["GHOSTTY_OPENTUI_FALLBACK_FONT_PATH"]
+  if (override) return override
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
   return join(dir, "..", "public", "symbols-nerd-font-mono-regular.ttf")
 }
