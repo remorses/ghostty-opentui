@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.4.12
+
+- Honor env-var overrides for bundled font paths
+  - Bundled font lookup now honors GHOSTTY_OPENTUI_FONT_PATH and GHOSTTY_OPENTUI_FALLBACK_FONT_PATH env vars, fixing ENOENT errors when running bun --compile-built binaries on machines other than the build host.
+
 ## 1.4.11
 
 - Preserve full grapheme clusters in `writeJsonOutput`
