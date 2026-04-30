@@ -243,6 +243,28 @@ To publish a new version:
 Do NOT publish locally. The `prepublishOnly` script blocks local `npm publish`.
 CI handles cross-compilation of native binaries for all platforms before publishing.
 
+## watching CI
+
+When asked to "watch CI" or "watch the build", do the following:
+
+1. Run `gh run list --limit 5` to find the latest CI run
+2. Watch it with `gh run watch <run_id> --exit-status` (set timeout to 20 minutes, cross-compilation is slow)
+3. If CI passes, check if the **publish** job ran by looking at the run output
+4. If publish ran successfully, a new npm version was released. Check the version in `package.json` and create a GitHub release:
+   - Determine the previous tag: `git tag --sort=-creatordate | head -2` (second one is the previous)
+   - View the diff: `git log <prev_tag>..HEAD --oneline` and `git diff <prev_tag>..HEAD --stat`
+   - Read `CHANGELOG.md` for the release notes
+   - Create the tag first: `git tag v<version>` and `git push origin v<version>`
+   - Create the release with detailed notes covering what changed, including PR numbers and contributor credits:
+     ```
+     gh release create v<version> --title "v<version>" --latest --notes "$(cat <<'EOF'
+     detailed release notes here
+     EOF
+     )"
+     ```
+5. If CI failed, report which step failed and the error annotations
+6. If publish did NOT run (e.g. it was a PR build, or build/test failed), just report CI status. No release needed.
+
 ## changelog
 
 after any meaningful change update CHANGELOG.md with the version number and the list of changes made. in concise bullet points
