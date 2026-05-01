@@ -26,6 +26,8 @@ export interface TerminalData {
   offset: number
   totalLines: number
   lines: TerminalLine[]
+  /** Per-line soft-wrap flags. True means this line wraps to the next (no hard newline). */
+  wrappedLines?: boolean[]
 }
 
 export interface PtyToJsonOptions {
@@ -107,6 +109,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
     offset: number
     totalLines: number
     lines: Array<Array<[string, string | null, string | null, number, number]>>
+    wrappedLines?: boolean[]
   }
 
   return {
@@ -126,6 +129,7 @@ export function ptyToJson(input: Buffer | Uint8Array | string, options: PtyToJso
         width,
       })),
     })),
+    wrappedLines: raw.wrappedLines,
   }
 }
 
@@ -354,6 +358,7 @@ export class PersistentTerminal {
       offset: number
       totalLines: number
       lines: Array<Array<[string, string | null, string | null, number, number]>>
+      wrappedLines?: boolean[]
     }
 
     return {
@@ -373,6 +378,7 @@ export class PersistentTerminal {
           width,
         })),
       })),
+      wrappedLines: raw.wrappedLines,
     }
   }
 
