@@ -7,6 +7,7 @@
   - Added `renderTerminalToSvg` for callers that want vector output or easier rendering debugging
   - Removed `@takumi-rs/core` and `@takumi-rs/helpers`; bundled font buffers are passed directly to resvg-wasm
   - Image export is now PNG-only, removing the old WebP/JPEG format options
+  - Draw common block, box-drawing, braille, and powerline characters as SVG geometry instead of font glyphs
 
 ## 1.4.12
 

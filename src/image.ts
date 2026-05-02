@@ -5,6 +5,7 @@ import fs from "fs"
 import os from "os"
 import path from "path"
 import { initWasm, Resvg } from "@resvg/resvg-wasm"
+import wcwidth from "wcwidth"
 import type { TerminalData, TerminalLine, TerminalSpan } from "./ffi.js"
 import { StyleFlags } from "./ffi.js"
 
@@ -220,6 +221,195 @@ function spanStyle(span: TerminalSpan): string {
   return styles.length > 0 ? ` ${styles.join(" ")}` : ""
 }
 
+type GlyphOptions = { char: string; x: number; y: number; width: number; height: number; color: string }
+
+function rect(options: { x: number; y: number; width: number; height: number; fill: string; opacity?: number }): string {
+  const { x, y, width, height, fill, opacity } = options
+  const opacityAttr = opacity === undefined ? "" : ` opacity="${opacity}"`
+  return `<rect x="${x}" y="${y}" width="${width}" height="${height}" fill="${escapeXml(fill)}"${opacityAttr}/>`
+}
+
+function pathShape(d: string, fill: string): string {
+  return `<path d="${d}" fill="${escapeXml(fill)}"/>`
+}
+
+function lineShape(options: { x1: number; y1: number; x2: number; y2: number; color: string; width: number }): string {
+  const { x1, y1, x2, y2, color, width } = options
+  return `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${escapeXml(color)}" stroke-width="${width}" stroke-linecap="butt"/>`
+}
+
+function blockElementSvg(options: GlyphOptions): string | undefined {
+  const { char, x, y, width, height, color } = options
+  const lowerFractions: Record<string, number> = { "▁": 1 / 8, "▂": 1 / 4, "▃": 3 / 8, "▄": 1 / 2, "▅": 5 / 8, "▆": 3 / 4, "▇": 7 / 8 }
+  const leftFractions: Record<string, number> = { "▉": 7 / 8, "▊": 3 / 4, "▋": 5 / 8, "▌": 1 / 2, "▍": 3 / 8, "▎": 1 / 4, "▏": 1 / 8 }
+  const quadrants: Record<string, [boolean, boolean, boolean, boolean]> = {
+    "▖": [false, false, true, false],
+    "▗": [false, false, false, true],
+    "▘": [true, false, false, false],
+    "▙": [true, false, true, true],
+    "▚": [true, false, false, true],
+    "▛": [true, true, true, false],
+    "▜": [true, true, false, true],
+    "▝": [false, true, false, false],
+    "▞": [false, true, true, false],
+    "▟": [false, true, true, true],
+  }
+
+  if (char === "█") return rect({ x, y, width, height, fill: color })
+  if (char === "▀") return rect({ x, y, width, height: height / 2, fill: color })
+  if (char === "▔") return rect({ x, y, width, height: Math.max(1, height / 8), fill: color })
+  if (char === "▐") return rect({ x: x + width / 2, y, width: width / 2, height, fill: color })
+  if (char === "▕") return rect({ x: x + width * 7 / 8, y, width: width / 8, height, fill: color })
+  if (char === "░") return rect({ x, y, width, height, fill: color, opacity: 0.25 })
+  if (char === "▒") return rect({ x, y, width, height, fill: color, opacity: 0.5 })
+  if (char === "▓") return rect({ x, y, width, height, fill: color, opacity: 0.75 })
+
+  const lower = lowerFractions[char]
+  if (lower) return rect({ x, y: y + height * (1 - lower), width, height: height * lower, fill: color })
+  const left = leftFractions[char]
+  if (left) return rect({ x, y, width: width * left, height, fill: color })
+
+  const quad = quadrants[char]
+  if (!quad) return undefined
+  const [tl, tr, bl, br] = quad
+  const parts: string[] = []
+  if (tl) parts.push(rect({ x, y, width: width / 2, height: height / 2, fill: color }))
+  if (tr) parts.push(rect({ x: x + width / 2, y, width: width / 2, height: height / 2, fill: color }))
+  if (bl) parts.push(rect({ x, y: y + height / 2, width: width / 2, height: height / 2, fill: color }))
+  if (br) parts.push(rect({ x: x + width / 2, y: y + height / 2, width: width / 2, height: height / 2, fill: color }))
+  return parts.join("")
+}
+
+function brailleSvg(options: GlyphOptions): string | undefined {
+  const { char, x, y, width, height, color } = options
+  const cp = char.codePointAt(0)
+  if (cp === undefined || cp < 0x2800 || cp > 0x28ff) return undefined
+
+  const pattern = cp - 0x2800
+  const radius = Math.max(1, Math.min(width / 7, height / 12))
+  const xs = [x + width * 0.32, x + width * 0.68]
+  const ys = [y + height * 0.18, y + height * 0.4, y + height * 0.62, y + height * 0.84]
+  const dots = [
+    [0, 0, 1],
+    [0, 1, 2],
+    [0, 2, 4],
+    [1, 0, 8],
+    [1, 1, 16],
+    [1, 2, 32],
+    [0, 3, 64],
+    [1, 3, 128],
+  ] as const
+
+  return dots
+    .filter(([, , bit]) => (pattern & bit) !== 0)
+    .map(([dotX, dotY]) => `<circle cx="${xs[dotX]}" cy="${ys[dotY]}" r="${radius}" fill="${escapeXml(color)}"/>`)
+    .join("")
+}
+
+type BoxSide = "light" | "heavy" | "double" | undefined
+
+function boxDrawingSvg(options: GlyphOptions): string | undefined {
+  const { char, x, y, width, height, color } = options
+  const lines: Record<string, [BoxSide, BoxSide, BoxSide, BoxSide]> = {
+    "─": [undefined, "light", undefined, "light"], "━": [undefined, "heavy", undefined, "heavy"],
+    "│": ["light", undefined, "light", undefined], "┃": ["heavy", undefined, "heavy", undefined],
+    "┌": [undefined, "light", "light", undefined], "┐": [undefined, undefined, "light", "light"],
+    "└": ["light", "light", undefined, undefined], "┘": ["light", undefined, undefined, "light"],
+    "├": ["light", "light", "light", undefined], "┤": ["light", undefined, "light", "light"],
+    "┬": [undefined, "light", "light", "light"], "┴": ["light", "light", undefined, "light"],
+    "┼": ["light", "light", "light", "light"], "╴": [undefined, undefined, undefined, "light"],
+    "╵": ["light", undefined, undefined, undefined], "╶": [undefined, "light", undefined, undefined],
+    "╷": [undefined, undefined, "light", undefined], "═": [undefined, "double", undefined, "double"],
+    "║": ["double", undefined, "double", undefined], "╔": [undefined, "double", "double", undefined],
+    "╗": [undefined, undefined, "double", "double"], "╚": ["double", "double", undefined, undefined],
+    "╝": ["double", undefined, undefined, "double"], "╬": ["double", "double", "double", "double"],
+  }
+  const sides = lines[char]
+  if (!sides) return undefined
+
+  const [up, right, down, left] = sides
+  const cx = x + width / 2
+  const cy = y + height / 2
+  const light = Math.max(1, Math.round(Math.min(width, height) / 10))
+  const heavy = light * 2
+  const drawSide = (options: { side: BoxSide; x1: number; y1: number; x2: number; y2: number }) => {
+    const { side, x1, y1, x2, y2 } = options
+    if (!side) return ""
+    if (side !== "double") return lineShape({ x1, y1, x2, y2, color, width: side === "heavy" ? heavy : light })
+    const offset = light * 1.2
+    if (x1 === x2) {
+      return `${lineShape({ x1: x1 - offset, y1, x2: x2 - offset, y2, color, width: light })}${lineShape({ x1: x1 + offset, y1, x2: x2 + offset, y2, color, width: light })}`
+    }
+    return `${lineShape({ x1, y1: y1 - offset, x2, y2: y2 - offset, color, width: light })}${lineShape({ x1, y1: y1 + offset, x2, y2: y2 + offset, color, width: light })}`
+  }
+
+  return [
+    drawSide({ side: up, x1: cx, y1: y, x2: cx, y2: cy }),
+    drawSide({ side: right, x1: cx, y1: cy, x2: x + width, y2: cy }),
+    drawSide({ side: down, x1: cx, y1: cy, x2: cx, y2: y + height }),
+    drawSide({ side: left, x1: x, y1: cy, x2: cx, y2: cy }),
+  ].join("")
+}
+
+function powerlineSvg(options: GlyphOptions): string | undefined {
+  const { char, x, y, width, height, color } = options
+  const strokeWidth = Math.max(1, width / 7)
+  switch (char) {
+    case "": return pathShape(`M ${x} ${y} L ${x + width} ${y + height / 2} L ${x} ${y + height} Z`, color)
+    case "": return pathShape(`M ${x + width} ${y} L ${x} ${y + height / 2} L ${x + width} ${y + height} Z`, color)
+    case "": return pathShape(`M ${x} ${y} L ${x + width} ${y + height} L ${x} ${y + height} Z`, color)
+    case "": return pathShape(`M ${x + width} ${y} L ${x + width} ${y + height} L ${x} ${y + height} Z`, color)
+    case "": return pathShape(`M ${x} ${y} L ${x + width} ${y} L ${x} ${y + height} Z`, color)
+    case "": return pathShape(`M ${x} ${y} L ${x + width} ${y} L ${x + width} ${y + height} Z`, color)
+    case "": return lineShape({ x1: x, y1: y, x2: x + width, y2: y + height / 2, color, width: strokeWidth }) + lineShape({ x1: x + width, y1: y + height / 2, x2: x, y2: y + height, color, width: strokeWidth })
+    case "": return lineShape({ x1: x + width, y1: y, x2: x, y2: y + height / 2, color, width: strokeWidth }) + lineShape({ x1: x, y1: y + height / 2, x2: x + width, y2: y + height, color, width: strokeWidth })
+    default: return undefined
+  }
+}
+
+function renderSpanContent(options: {
+  parts: string[]
+  span: TerminalSpan
+  x: number
+  y: number
+  colors: { fg: string; bg: string | null }
+  charWidth: number
+  lineHeightPx: number
+  fontSize: number
+  fontFamily: string
+  textY: number
+}): number {
+  const { parts, span, y, colors, charWidth, lineHeightPx, fontSize, fontFamily, textY } = options
+  let x = options.x
+  let textBuffer = ""
+  let textWidth = 0
+  const flushText = () => {
+    if (textBuffer.length === 0) return
+    parts.push(`<text x="${x - textWidth * charWidth}" y="${textY}" fill="${escapeXml(colors.fg)}" font-family="${escapeXml(fontFamily)}" font-size="${fontSize}" xml:space="preserve"${spanStyle(span)}>${escapeXml(textBuffer)}</text>`)
+    textBuffer = ""
+    textWidth = 0
+  }
+
+  for (const char of Array.from(span.text)) {
+    const cellWidth = Math.max(1, wcwidth(char))
+    const glyphOptions = { char, x, y, width: charWidth * cellWidth, height: lineHeightPx, color: colors.fg }
+    const glyph = blockElementSvg(glyphOptions)
+      ?? brailleSvg(glyphOptions)
+      ?? boxDrawingSvg(glyphOptions)
+      ?? powerlineSvg(glyphOptions)
+    if (glyph) {
+      flushText()
+      parts.push(glyph)
+    } else {
+      textBuffer += char
+      textWidth += cellWidth
+    }
+    x += charWidth * cellWidth
+  }
+  flushText()
+  return x
+}
+
 function renderSvgFrame(
   lines: TerminalLine[],
   options: RenderImageOptions & { imageWidth: number; imageHeight: number },
@@ -260,9 +450,18 @@ function renderSvgFrame(
         parts.push(`<rect x="${x}" y="${lineY}" width="${spanWidth}" height="${lineHeightPx}" fill="${escapeXml(colors.bg)}"/>`)
       }
       if (span.text.length > 0) {
-        parts.push(
-          `<text x="${x}" y="${lineY + textYAdjustment}" fill="${escapeXml(colors.fg)}" font-family="${escapeXml(fontFamily)}" font-size="${fontSize}" xml:space="preserve"${spanStyle(span)}>${escapeXml(span.text)}</text>`,
-        )
+        renderSpanContent({
+          parts,
+          span,
+          x,
+          y: lineY,
+          colors,
+          charWidth,
+          lineHeightPx,
+          fontSize,
+          fontFamily,
+          textY: lineY + textYAdjustment,
+        })
       }
       x += spanWidth
     }

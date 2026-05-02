@@ -225,6 +225,45 @@ describe("rendering options", () => {
 </svg>"
 `)
   })
+
+  it("svg output — draws terminal glyphs as geometry", () => {
+    const data = ptyToJson("┌─┐\n│█│\n└⠿", { cols: 4, rows: 3 })
+    const svg = renderTerminalToSvg(data, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"30\" viewBox=\"0 0 24 30\">
+<rect x=\"0\" y=\"0\" width=\"24\" height=\"30\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"24\" height=\"30\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<line x1=\"3\" y1=\"5\" x2=\"6\" y2=\"5\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"3\" y1=\"5\" x2=\"3\" y2=\"10\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"9\" y1=\"5\" x2=\"12\" y2=\"5\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"6\" y1=\"5\" x2=\"9\" y2=\"5\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"15\" y1=\"5\" x2=\"15\" y2=\"10\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"12\" y1=\"5\" x2=\"15\" y2=\"5\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<rect x=\"0\" y=\"10\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<line x1=\"3\" y1=\"10\" x2=\"3\" y2=\"15\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"3\" y1=\"15\" x2=\"3\" y2=\"20\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<rect x=\"6\" y=\"10\" width=\"6\" height=\"10\" fill=\"#ffffff\"/>
+<line x1=\"15\" y1=\"10\" x2=\"15\" y2=\"15\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"15\" y1=\"15\" x2=\"15\" y2=\"20\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<rect x=\"0\" y=\"20\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<line x1=\"3\" y1=\"20\" x2=\"3\" y2=\"25\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<line x1=\"3\" y1=\"25\" x2=\"6\" y2=\"25\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+<circle cx=\"7.92\" cy=\"21.8\" r=\"1\" fill=\"#ffffff\"/>
+<circle cx=\"7.92\" cy=\"24\" r=\"1\" fill=\"#ffffff\"/>
+<circle cx=\"7.92\" cy=\"26.2\" r=\"1\" fill=\"#ffffff\"/>
+<circle cx=\"10.08\" cy=\"21.8\" r=\"1\" fill=\"#ffffff\"/>
+<circle cx=\"10.08\" cy=\"24\" r=\"1\" fill=\"#ffffff\"/>
+<circle cx=\"10.08\" cy=\"26.2\" r=\"1\" fill=\"#ffffff\"/>
+<path d=\"M 12 20 L 18 25 L 12 30 Z\" fill=\"#ffffff\"/>
+</svg>"
+`)
+  })
 })
 
 describe("paginated rendering", () => {
