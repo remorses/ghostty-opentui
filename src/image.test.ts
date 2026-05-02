@@ -286,6 +286,34 @@ describe("rendering options", () => {
 `)
   })
 
+  it("svg output — uses terminal cell widths for glyph positioning", () => {
+    const data = ptyToJson("🬀█\n󰄛█\n❤️█\n╹█", { cols: 4, rows: 4 })
+    const svg = renderTerminalToSvg(data, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"24\" height=\"40\" viewBox=\"0 0 24 40\">
+<rect x=\"0\" y=\"0\" width=\"24\" height=\"40\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"24\" height=\"40\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<text x=\"0\" y=\"7.800000000000001\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace\" font-size=\"10\" xml:space=\"preserve\">🬀</text>
+<rect x=\"6\" y=\"0\" width=\"6\" height=\"10\" fill=\"#ffffff\"/>
+<rect x=\"0\" y=\"10\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<text x=\"0\" y=\"17.8\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace\" font-size=\"10\" xml:space=\"preserve\">󰄛</text>
+<rect x=\"6\" y=\"10\" width=\"6\" height=\"10\" fill=\"#ffffff\"/>
+<rect x=\"0\" y=\"20\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<text x=\"0\" y=\"27.8\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace\" font-size=\"10\" xml:space=\"preserve\">❤️</text>
+<rect x=\"6\" y=\"20\" width=\"6\" height=\"10\" fill=\"#ffffff\"/>
+<rect x=\"0\" y=\"30\" width=\"24\" height=\"10\" fill=\"#000000\"/>
+<line x1=\"3\" y1=\"30\" x2=\"3\" y2=\"35\" stroke=\"#ffffff\" stroke-width=\"2\" stroke-linecap=\"butt\"/>
+<rect x=\"6\" y=\"30\" width=\"6\" height=\"10\" fill=\"#ffffff\"/>
+</svg>"
+`)
+  })
+
   it("unicode fallback fonts — CJK and symbols", async () => {
     const data = ptyToJson("Latin Ελληνικά Кириллица\nCJK 你好 日本語 한국어\nSymbols ∑ ∫ ⌘ ⚙ ☂", { cols: 60, rows: 3 })
     const image = await renderTerminalToImage(data, {
@@ -366,8 +394,7 @@ async function spawnAndCapture(
       rows,
       data(_terminal: any, data: any) {
         if (done) return
-        const str = typeof data === "string" ? data : new TextDecoder().decode(data)
-        term.feed(str)
+        term.feed(data)
         clearTimeout(idleTimer)
         idleTimer = setTimeout(() => idleResolve?.(), idleMs)
       },

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.14
+
+- Fix SVG/resvg image rendering for newer terminal glyphs
+  - `renderTerminalToSvg` and `renderTerminalToImage` now position glyphs from Ghostty's exported terminal cell widths instead of stale `wcwidth` widths, fixing Symbols for Legacy Computing, Nerd Font icons, and variation-selector glyphs that were shifted or looked replaced in screenshots.
+  - Added geometry rendering for heavy box-drawing half lines such as `╹`, used by opencode prompt/status chrome.
+
 ## 1.4.13
 
 - Replace Takumi image rendering with SVG plus resvg-wasm

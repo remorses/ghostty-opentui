@@ -358,7 +358,9 @@ function boxDrawingSvg(options: GlyphOptions): string | undefined {
     "┬": [undefined, "light", "light", "light"], "┴": ["light", "light", undefined, "light"],
     "┼": ["light", "light", "light", "light"], "╴": [undefined, undefined, undefined, "light"],
     "╵": ["light", undefined, undefined, undefined], "╶": [undefined, "light", undefined, undefined],
-    "╷": [undefined, undefined, "light", undefined], "═": [undefined, "double", undefined, "double"],
+    "╷": [undefined, undefined, "light", undefined], "╸": [undefined, undefined, undefined, "heavy"],
+    "╹": ["heavy", undefined, undefined, undefined], "╺": [undefined, "heavy", undefined, undefined],
+    "╻": [undefined, undefined, "heavy", undefined], "═": [undefined, "double", undefined, "double"],
     "║": ["double", undefined, "double", undefined], "╔": [undefined, "double", "double", undefined],
     "╗": [undefined, undefined, "double", "double"], "╚": ["double", "double", undefined, undefined],
     "╝": ["double", undefined, undefined, "double"], "╬": ["double", "double", "double", "double"],
@@ -406,6 +408,28 @@ function powerlineSvg(options: GlyphOptions): string | undefined {
   }
 }
 
+function splitSpanCells(span: TerminalSpan): { text: string; width: number }[] {
+  const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" })
+  const cells = Array.from(segmenter.segment(span.text), (segment) => ({
+    text: segment.segment,
+    width: Math.max(1, wcwidth(segment.segment)),
+  }))
+
+  let width = cells.reduce((total, cell) => total + cell.width, 0)
+  for (let i = cells.length - 1; width > span.width && i >= 0; i--) {
+    const cell = cells[i]!
+    const reduction = Math.min(cell.width - 1, width - span.width)
+    cell.width -= reduction
+    width -= reduction
+  }
+
+  if (width < span.width && cells.length > 0) {
+    cells[cells.length - 1]!.width += span.width - width
+  }
+
+  return cells
+}
+
 function renderSpanContent(options: {
   parts: string[]
   span: TerminalSpan
@@ -429,9 +453,9 @@ function renderSpanContent(options: {
     textWidth = 0
   }
 
-  for (const char of Array.from(span.text)) {
-    const cellWidth = Math.max(1, wcwidth(char))
-    const glyphOptions = { char, x, y, width: charWidth * cellWidth, height: lineHeightPx, color: colors.fg }
+  for (const cell of splitSpanCells(span)) {
+    const cellWidth = cell.width
+    const glyphOptions = { char: cell.text, x, y, width: charWidth * cellWidth, height: lineHeightPx, color: colors.fg }
     const glyph = blockElementSvg(glyphOptions)
       ?? brailleSvg(glyphOptions)
       ?? boxDrawingSvg(glyphOptions)
@@ -446,7 +470,7 @@ function renderSpanContent(options: {
       const styledGlyph = `${glyph}${decorations}`
       parts.push((span.flags & StyleFlags.FAINT) ? `<g opacity="0.5">${styledGlyph}</g>` : styledGlyph)
     } else {
-      textBuffer += char
+      textBuffer += cell.text
       textWidth += cellWidth
     }
     x += charWidth * cellWidth
