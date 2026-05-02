@@ -71,12 +71,16 @@ const DEFAULT_PADDING_X = 0
 const DEFAULT_PADDING_Y = 0
 const DEFAULT_FONT_FAMILY = "JetBrainsMono Nerd Font"
 const FALLBACK_SYMBOLS_FONT_FAMILY = "Symbols Nerd Font Mono"
+const NOTO_SANS_FONT_FAMILY = "Noto Sans"
+const NOTO_SYMBOLS_FONT_FAMILY = "Noto Sans Symbols"
+const NOTO_SYMBOLS_2_FONT_FAMILY = "Noto Sans Symbols2"
+const NOTO_CJK_FONT_FAMILY = "Noto Sans CJK SC"
 /** Monospace character width as a fraction of font size.
  * JetBrains Mono has 600/1000 em-unit width, so 0.6 is accurate. */
 const CHAR_WIDTH_FACTOR = 0.6
 
 let wasmInitPromise: Promise<void> | undefined
-let cachedFontPath: string | undefined
+let cachedFontKey: string | undefined
 let cachedFontBuffers: Uint8Array[] | undefined
 
 async function ensureResvgInitialized(): Promise<void> {
@@ -89,14 +93,23 @@ async function ensureResvgInitialized(): Promise<void> {
 }
 
 function getFontBuffers(fontPath?: string): Uint8Array[] {
-  if (cachedFontBuffers && cachedFontPath === fontPath) return cachedFontBuffers
+  const extraFontPaths = getExtraFontPaths()
+  const fontKey = [fontPath ?? "", ...extraFontPaths].join("\0")
+  if (cachedFontBuffers && cachedFontKey === fontKey) return cachedFontBuffers
 
   const resolvedFontPath = fontPath ?? getBundledFontPath()
-  cachedFontBuffers = [
-    new Uint8Array(fs.readFileSync(resolvedFontPath)),
-    new Uint8Array(fs.readFileSync(getBundledFallbackFontPath())),
+  const fontPaths = [
+    resolvedFontPath,
+    getBundledFallbackFontPath(),
+    getBundledNotoSansPath(),
+    getBundledNotoSymbolsPath(),
+    getBundledNotoSymbols2Path(),
+    getBundledNotoCjkPath(),
+    ...extraFontPaths,
   ]
-  cachedFontPath = fontPath
+
+  cachedFontBuffers = fontPaths.map((fontPath) => new Uint8Array(fs.readFileSync(fontPath)))
+  cachedFontKey = fontKey
 
   return cachedFontBuffers
 }
@@ -115,6 +128,32 @@ function getBundledFallbackFontPath(): string {
   if (override) return override
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
   return path.join(dir, "..", "public", "symbols-nerd-font-mono-regular.ttf")
+}
+
+function getBundledNotoSansPath(): string {
+  const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
+  return path.join(dir, "..", "public", "noto-sans-regular.ttf")
+}
+
+function getBundledNotoSymbolsPath(): string {
+  const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
+  return path.join(dir, "..", "public", "noto-sans-symbols-regular.ttf")
+}
+
+function getBundledNotoSymbols2Path(): string {
+  const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
+  return path.join(dir, "..", "public", "noto-sans-symbols-2-regular.ttf")
+}
+
+function getBundledNotoCjkPath(): string {
+  const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
+  return path.join(dir, "..", "public", "noto-sans-cjk-sc-regular.otf")
+}
+
+function getExtraFontPaths(): string[] {
+  const value = process.env["GHOSTTY_OPENTUI_EXTRA_FONT_PATHS"]
+  if (!value) return []
+  return value.split(path.delimiter).filter(Boolean)
 }
 
 /** Check if a line is empty (no spans or only whitespace) */
@@ -399,7 +438,13 @@ function renderSpanContent(options: {
       ?? powerlineSvg(glyphOptions)
     if (glyph) {
       flushText()
-      parts.push(glyph)
+      const decorationWidth = Math.max(1, Math.round(lineHeightPx / 12))
+      const decorations = [
+        (span.flags & StyleFlags.UNDERLINE) ? lineShape({ x1: x, y1: y + lineHeightPx * 0.86, x2: x + charWidth * cellWidth, y2: y + lineHeightPx * 0.86, color: colors.fg, width: decorationWidth }) : "",
+        (span.flags & StyleFlags.STRIKETHROUGH) ? lineShape({ x1: x, y1: y + lineHeightPx * 0.55, x2: x + charWidth * cellWidth, y2: y + lineHeightPx * 0.55, color: colors.fg, width: decorationWidth }) : "",
+      ].join("")
+      const styledGlyph = `${glyph}${decorations}`
+      parts.push((span.flags & StyleFlags.FAINT) ? `<g opacity="0.5">${styledGlyph}</g>` : styledGlyph)
     } else {
       textBuffer += char
       textWidth += cellWidth
@@ -428,7 +473,7 @@ function renderSvgFrame(
   const lineHeightPx = Math.round(fontSize * lineHeight)
   const contentWidth = imageWidth - paddingX * 2
   const frameColor = options.frameColor ?? theme.background
-  const fontFamily = `${DEFAULT_FONT_FAMILY}, ${FALLBACK_SYMBOLS_FONT_FAMILY}, monospace`
+  const fontFamily = `${DEFAULT_FONT_FAMILY}, ${FALLBACK_SYMBOLS_FONT_FAMILY}, ${NOTO_SANS_FONT_FAMILY}, ${NOTO_SYMBOLS_FONT_FAMILY}, ${NOTO_SYMBOLS_2_FONT_FAMILY}, ${NOTO_CJK_FONT_FAMILY}, monospace`
   const textYAdjustment = (lineHeightPx - fontSize) / 2 + fontSize * 0.78
   const parts: string[] = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${imageHeight}" viewBox="0 0 ${imageWidth} ${imageHeight}">`,

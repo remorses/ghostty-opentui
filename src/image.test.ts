@@ -214,14 +214,14 @@ describe("rendering options", () => {
     })
 
     expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
-"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"14\" viewBox=\"0 0 100 14\">
-<rect x=\"0\" y=\"0\" width=\"100\" height=\"14\" fill=\"#000000\"/>
-<rect x=\"0\" y=\"0\" width=\"100\" height=\"14\" fill=\"#000000\"/>
-<rect x=\"0\" y=\"0\" width=\"100\" height=\"14\" fill=\"#000000\"/>
-<text x=\"0\" y=\"9.8\" fill=\"#b5bd68\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, monospace\" font-size=\"10\" xml:space=\"preserve\">OK</text>
-<text x=\"12\" y=\"9.8\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, monospace\" font-size=\"10\" xml:space=\"preserve\"> </text>
-<rect x=\"18\" y=\"0\" width=\"18\" height=\"14\" fill=\"#000000\"/>
-<text x=\"18\" y=\"9.8\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, monospace\" font-size=\"10\" xml:space=\"preserve\">INV</text>
+"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="14" viewBox="0 0 100 14">
+<rect x="0" y="0" width="100" height="14" fill="#000000"/>
+<rect x="0" y="0" width="100" height="14" fill="#000000"/>
+<rect x="0" y="0" width="100" height="14" fill="#000000"/>
+<text x="0" y="9.8" fill="#b5bd68" font-family="JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace" font-size="10" xml:space="preserve">OK</text>
+<text x="12" y="9.8" fill="#ffffff" font-family="JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace" font-size="10" xml:space="preserve"> </text>
+<rect x="18" y="0" width="18" height="14" fill="#000000"/>
+<text x="18" y="9.8" fill="#ffffff" font-family="JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace" font-size="10" xml:space="preserve">INV</text>
 </svg>"
 `)
   })
@@ -263,6 +263,41 @@ describe("rendering options", () => {
 <path d=\"M 12 20 L 18 25 L 12 30 Z\" fill=\"#ffffff\"/>
 </svg>"
 `)
+  })
+
+  it("svg output — keeps style flags on geometry glyphs", () => {
+    const data = ptyToJson("\x1b[2;4m█\x1b[0m", { cols: 1, rows: 1 })
+    const svg = renderTerminalToSvg(data, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"6\" height=\"10\" viewBox=\"0 0 6 10\">
+<rect x=\"0\" y=\"0\" width=\"6\" height=\"10\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"6\" height=\"10\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"6\" height=\"10\" fill=\"#000000\"/>
+<g opacity=\"0.5\">
+<rect x=\"0\" y=\"0\" width=\"6\" height=\"10\" fill=\"#ffffff\"/>
+<line x1=\"0\" y1=\"8.6\" x2=\"6\" y2=\"8.6\" stroke=\"#ffffff\" stroke-width=\"1\" stroke-linecap=\"butt\"/>
+</g>
+</svg>"
+`)
+  })
+
+  it("unicode fallback fonts — CJK and symbols", async () => {
+    const data = ptyToJson("Latin Ελληνικά Кириллица\nCJK 你好 日本語 한국어\nSymbols ∑ ∫ ⌘ ⚙ ☂", { cols: 60, rows: 3 })
+    const image = await renderTerminalToImage(data, {
+      fontSize: 18,
+      lineHeight: 1.3,
+      paddingX: 12,
+      paddingY: 10,
+    })
+
+    expect(isPng(image)).toBe(true)
+    expect(image.length).toBeGreaterThan(1000)
+    saveImage("unicode-fallback", image)
   })
 })
 

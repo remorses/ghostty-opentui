@@ -265,7 +265,7 @@ const styledText = terminalDataToStyledText(data, highlights)
 
 ### Screenshot / Image Rendering
 
-Render terminal output to SVG or PNG images using [resvg-wasm](https://github.com/thx/resvg-js). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment.
+Render terminal output to SVG or PNG images using [resvg-wasm](https://github.com/thx/resvg-js). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment and Noto fallback fonts for broader Unicode coverage.
 
 ```typescript
 import { ptyToJson } from "ghostty-opentui"
@@ -306,6 +306,19 @@ const result = await renderTerminalToPaginatedImages(data, {
 #### Image rendering notes
 
 The SVG output is deterministic and easy to inspect. PNG output uses the same SVG frame and loads bundled fonts into resvg-wasm, so screenshots do not depend on system fonts.
+
+Bundled font fallback order:
+
+1. JetBrains Mono Nerd Font
+2. Symbols Nerd Font Mono
+3. Noto Sans
+4. Noto Sans Symbols
+5. Noto Sans Symbols 2
+6. Noto Sans CJK SC
+
+Add more fallback fonts at runtime with `GHOSTTY_OPENTUI_EXTRA_FONT_PATHS`. Use the platform path delimiter, `:` on macOS/Linux and `;` on Windows.
+
+Emoji color fonts are not bundled because the current `@resvg/resvg-wasm` release does not render Noto emoji color fonts correctly.
 
 ### API
 
