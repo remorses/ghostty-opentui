@@ -5,7 +5,7 @@ import { describe, it, expect, beforeAll } from "bun:test"
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs"
 import { join } from "path"
 import { ptyToJson, PersistentTerminal, type TerminalData } from "./ffi.js"
-import { renderTerminalToImage, renderTerminalToPaginatedImages } from "./image.js"
+import { renderTerminalToImage, renderTerminalToPaginatedImages, renderTerminalToSvg } from "./image.js"
 
 const TESTDATA_DIR = join(import.meta.dirname, "..", "testdata")
 const IMAGES_DIR = join(TESTDATA_DIR, "images")
@@ -204,16 +204,26 @@ describe("rendering options", () => {
     saveImage("vitest-clipped", image)
   })
 
-  it("webp format", async () => {
-    const ansi = readTestData("colors.log")
-    const data = ptyToJson(ansi, { cols: 80, rows: 10 })
-    const image = await renderTerminalToImage(data, {
-      format: "webp",
-      quality: 85,
+  it("svg output — deterministic vector terminal frame", () => {
+    const data = ptyToJson("\x1b[32mOK\x1b[0m \x1b[7mINV\x1b[0m", { cols: 10, rows: 1 })
+    const svg = renderTerminalToSvg(data, {
+      width: 100,
+      fontSize: 10,
+      lineHeight: 1.4,
+      theme: { background: "#000000", text: "#ffffff" },
     })
 
-    expect(image.length).toBeGreaterThan(100)
-    saveImage("colors", image, "webp")
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"14\" viewBox=\"0 0 100 14\">
+<rect x=\"0\" y=\"0\" width=\"100\" height=\"14\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"100\" height=\"14\" fill=\"#000000\"/>
+<rect x=\"0\" y=\"0\" width=\"100\" height=\"14\" fill=\"#000000\"/>
+<text x=\"0\" y=\"9.8\" fill=\"#b5bd68\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, monospace\" font-size=\"10\" xml:space=\"preserve\">OK</text>
+<text x=\"12\" y=\"9.8\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, monospace\" font-size=\"10\" xml:space=\"preserve\"> </text>
+<rect x=\"18\" y=\"0\" width=\"18\" height=\"14\" fill=\"#000000\"/>
+<text x=\"18\" y=\"9.8\" fill=\"#ffffff\" font-family=\"JetBrainsMono Nerd Font, Symbols Nerd Font Mono, monospace\" font-size=\"10\" xml:space=\"preserve\">INV</text>
+</svg>"
+`)
   })
 })
 

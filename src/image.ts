@@ -1,18 +1,12 @@
-// Terminal-to-image rendering using takumi-rs.
-// Converts TerminalData (from ghostty-opentui parser) into PNG/WebP/JPEG images.
-// Uses JetBrains Mono Nerd font for monospace rendering with
-// Symbols Nerd Font Mono as fallback for missing Unicode glyphs.
+// Terminal-to-image rendering through an SVG intermediate.
+// Converts TerminalData into deterministic SVG, then rasterizes PNG output with resvg-wasm.
 
-import { readFileSync } from "fs"
-import { join } from "path"
-import { tmpdir } from "os"
-import { writeFileSync } from "fs"
+import fs from "fs"
+import os from "os"
+import path from "path"
+import { initWasm, Resvg } from "@resvg/resvg-wasm"
 import type { TerminalData, TerminalLine, TerminalSpan } from "./ffi.js"
 import { StyleFlags } from "./ffi.js"
-
-// ─────────────────────────────────────────────────────────────
-// Types
-// ─────────────────────────────────────────────────────────────
 
 /** Theme colors for rendering */
 export interface ImageTheme {
@@ -38,10 +32,6 @@ export interface RenderImageOptions {
   paddingY?: number
   /** Theme colors (default: tokyo night) */
   theme?: ImageTheme
-  /** Output format (default: "png") */
-  format?: "webp" | "png" | "jpeg"
-  /** Quality for lossy formats 0-100 (default: 90) */
-  quality?: number
   /** Path to a custom TTF/OTF font file. If not set, uses bundled JetBrains Mono Nerd */
   fontPath?: string
   /** Device pixel ratio for HiDPI/retina rendering (default: 1) */
@@ -59,7 +49,7 @@ export interface RenderPaginatedOptions extends RenderImageOptions {
 
 /** Result from paginated render */
 export interface PaginatedRenderResult {
-  /** Array of image buffers */
+  /** Array of PNG image buffers */
   images: Buffer[]
   /** Paths to temp files where images were saved */
   paths: string[]
@@ -68,10 +58,6 @@ export interface PaginatedRenderResult {
   /** Number of images generated */
   imageCount: number
 }
-
-// ─────────────────────────────────────────────────────────────
-// Defaults
-// ─────────────────────────────────────────────────────────────
 
 const DEFAULT_THEME: ImageTheme = {
   background: "#1a1b26",
@@ -82,70 +68,44 @@ const DEFAULT_FONT_SIZE = 14
 const DEFAULT_LINE_HEIGHT = 1.5
 const DEFAULT_PADDING_X = 0
 const DEFAULT_PADDING_Y = 0
-const FALLBACK_SYMBOLS_FONT_NAME = "Symbols Nerd Font Mono"
+const DEFAULT_FONT_FAMILY = "JetBrainsMono Nerd Font"
+const FALLBACK_SYMBOLS_FONT_FAMILY = "Symbols Nerd Font Mono"
 /** Monospace character width as a fraction of font size.
  * JetBrains Mono has 600/1000 em-unit width, so 0.6 is accurate. */
 const CHAR_WIDTH_FACTOR = 0.6
 
-// ─────────────────────────────────────────────────────────────
-// Cached Renderer Singleton
-// ─────────────────────────────────────────────────────────────
+let wasmInitPromise: Promise<void> | undefined
+let cachedFontPath: string | undefined
+let cachedFontBuffers: Uint8Array[] | undefined
 
-let cachedRenderer: import("@takumi-rs/core").Renderer | null = null
-let rendererInitPromise: Promise<import("@takumi-rs/core").Renderer> | null = null
-let cachedFontPath: string | undefined = undefined
-
-/**
- * Get or create a cached takumi Renderer with the font loaded.
- * Re-creates if fontPath changes from previous call.
- */
-async function getRenderer(fontPath?: string): Promise<import("@takumi-rs/core").Renderer> {
-  if (cachedRenderer && cachedFontPath === fontPath) {
-    return cachedRenderer
-  }
-
-  // Font path changed, need new renderer
-  if (cachedFontPath !== fontPath) {
-    cachedRenderer = null
-    rendererInitPromise = null
-  }
-
-  if (rendererInitPromise) {
-    return rendererInitPromise
-  }
-
-  rendererInitPromise = (async () => {
-    const { Renderer } = await import("@takumi-rs/core")
-    const renderer = new Renderer()
-
-    // Load primary font - use custom path or bundled JetBrains Mono Nerd
-    const resolvedFontPath = fontPath ?? getBundledFontPath()
-    const fontData = readFileSync(resolvedFontPath)
-    await renderer.loadFont(new Uint8Array(fontData))
-
-    // Load Unicode symbols fallback font to cover glyphs that JetBrains Mono
-    // does not include (e.g. U+25FC ◼ used by heatmap cells).
-    const fallbackFontData = readFileSync(getBundledFallbackFontPath())
-    await renderer.loadFont({
-      data: new Uint8Array(fallbackFontData),
-      name: FALLBACK_SYMBOLS_FONT_NAME,
-    })
-
-    cachedFontPath = fontPath
-    cachedRenderer = renderer
-    return renderer
+async function ensureResvgInitialized(): Promise<void> {
+  wasmInitPromise ??= (async () => {
+    const wasmUrl = new URL(import.meta.resolve("@resvg/resvg-wasm/index_bg.wasm"))
+    await initWasm(fs.readFileSync(wasmUrl))
   })()
 
-  return rendererInitPromise
+  return wasmInitPromise
+}
+
+function getFontBuffers(fontPath?: string): Uint8Array[] {
+  if (cachedFontBuffers && cachedFontPath === fontPath) return cachedFontBuffers
+
+  const resolvedFontPath = fontPath ?? getBundledFontPath()
+  cachedFontBuffers = [
+    new Uint8Array(fs.readFileSync(resolvedFontPath)),
+    new Uint8Array(fs.readFileSync(getBundledFallbackFontPath())),
+  ]
+  cachedFontPath = fontPath
+
+  return cachedFontBuffers
 }
 
 /** Resolve path to the bundled JetBrains Mono Nerd TTF */
 function getBundledFontPath(): string {
   const override = process.env["GHOSTTY_OPENTUI_FONT_PATH"]
   if (override) return override
-  // import.meta.dirname works in both bun and node ESM
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
-  return join(dir, "..", "public", "jetbrains-mono-nerd.ttf")
+  return path.join(dir, "..", "public", "jetbrains-mono-nerd.ttf")
 }
 
 /** Resolve path to bundled fallback symbols font */
@@ -153,12 +113,8 @@ function getBundledFallbackFontPath(): string {
   const override = process.env["GHOSTTY_OPENTUI_FALLBACK_FONT_PATH"]
   if (override) return override
   const dir = typeof __dirname !== "undefined" ? __dirname : import.meta.dirname
-  return join(dir, "..", "public", "symbols-nerd-font-mono-regular.ttf")
+  return path.join(dir, "..", "public", "symbols-nerd-font-mono-regular.ttf")
 }
-
-// ─────────────────────────────────────────────────────────────
-// Utility Functions
-// ─────────────────────────────────────────────────────────────
 
 /** Check if a line is empty (no spans or only whitespace) */
 function isLineEmpty(line: TerminalLine): boolean {
@@ -167,7 +123,6 @@ function isLineEmpty(line: TerminalLine): boolean {
     const textEmpty = span.text.trim() === ""
     const noBg = span.bg === null
     const noInverse = (span.flags & StyleFlags.INVERSE) === 0
-    // If text is empty, we must ensure there's no visual background
     return textEmpty && noBg && noInverse
   })
 }
@@ -175,16 +130,13 @@ function isLineEmpty(line: TerminalLine): boolean {
 /** Trim empty lines from end of lines array */
 function trimTrailingEmptyLines(lines: TerminalLine[]): TerminalLine[] {
   let end = lines.length
-  while (end > 0 && isLineEmpty(lines[end - 1]!)) {
-    end--
-  }
+  while (end > 0 && isLineEmpty(lines[end - 1]!)) end--
   return lines.slice(0, end)
 }
 
 /**
  * Detect the dominant background color along the edges of the terminal content.
- * Samples: all spans on first/last line + first/last span of each line in between.
- * Returns the most common color, falling back to the provided default.
+ * Samples all spans on first/last line plus first/last span of each line in between.
  */
 function detectEdgeColor(lines: TerminalLine[], fallback: string): string {
   const counts = new Map<string, number>()
@@ -200,16 +152,13 @@ function detectEdgeColor(lines: TerminalLine[], fallback: string): string {
       continue
     }
     if (i === 0 || i === lines.length - 1) {
-      // Sample all spans on first and last lines
       for (const span of spans) add(span.bg)
     } else {
-      // Sample first and last span of middle lines
       add(spans[0]!.bg)
       if (spans.length > 1) add(spans[spans.length - 1]!.bg)
     }
   }
 
-  // Return most frequent color
   let best = fallback
   let bestCount = 0
   for (const [color, count] of counts) {
@@ -222,267 +171,121 @@ function detectEdgeColor(lines: TerminalLine[], fallback: string): string {
 }
 
 /** Calculate auto width from terminal columns */
-function calculateAutoWidth(
-  cols: number,
-  fontSize: number,
-  paddingX: number,
-): number {
+function calculateAutoWidth(options: { cols: number; fontSize: number; paddingX: number }): number {
+  const { cols, fontSize, paddingX } = options
   const charWidth = fontSize * CHAR_WIDTH_FACTOR
   return Math.ceil(cols * charWidth + paddingX * 2)
 }
 
-// ─────────────────────────────────────────────────────────────
-// Node Conversion Functions
-// ─────────────────────────────────────────────────────────────
+function escapeXml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;")
+}
 
-/**
- * Convert a TerminalSpan to a fixed-width container holding a text node.
- * The container width is exactly span.width * charWidth, forcing a character
- * grid layout so columns align even if the font renders some glyphs
- * (box-drawing, block elements) at slightly different advance widths.
- */
-function spanToNode(
-  span: TerminalSpan,
-  helpers: typeof import("@takumi-rs/helpers"),
-  theme: ImageTheme,
-  charWidth: number,
-) {
-  const { container, text } = helpers
-
-  const textStyle: Record<string, string | number> = {
-    display: "inline",
-    flexShrink: 0,
-  }
-
+function resolveSpanColors(span: TerminalSpan, theme: ImageTheme): { fg: string; bg: string | null } {
   let fg = span.fg
   let bg = span.bg
 
-  // Handle INVERSE flag: swap fg and bg
   if (span.flags & StyleFlags.INVERSE) {
     const tmpFg = fg
     fg = bg ?? theme.text
     bg = tmpFg ?? theme.background
   }
 
-  if (fg) {
-    textStyle.color = fg
-  }
-  if (span.flags & StyleFlags.BOLD) {
-    textStyle.fontWeight = "bold"
-  }
-  if (span.flags & StyleFlags.ITALIC) {
-    textStyle.fontStyle = "italic"
-  }
-  if (span.flags & StyleFlags.FAINT) {
-    textStyle.opacity = 0.5
-  }
-
-  // Wrap text in a fixed-width container to enforce grid alignment
-  const containerStyle: Record<string, string | number> = {
-    display: "flex",
-    width: span.width * charWidth,
-    height: "100%",
-    overflow: "hidden",
-    flexShrink: 0,
-  }
-  if (bg) {
-    containerStyle.backgroundColor = bg
-  }
-
-  return container({
-    style: containerStyle,
-    children: [text(span.text, textStyle)],
-  })
+  return { fg: fg ?? theme.text, bg }
 }
 
-/**
- * Convert a TerminalLine to a takumi flex row container.
- * Each line is a fixed-height row with spans inside.
- */
-function lineToContainerNode(
-  line: TerminalLine,
-  helpers: typeof import("@takumi-rs/helpers"),
-  options: {
-    backgroundColor: string
-    textColor: string
-    lineHeight: number
-    fontSize: number
-    charWidth: number
-    theme: ImageTheme
-    width?: number
-  },
-) {
-  const { container, text } = helpers
-  const { backgroundColor, lineHeight, fontSize, charWidth, theme, width } = options
-
-  const lineHeightPx = Math.round(fontSize * lineHeight)
-
-  // Convert spans to fixed-width grid cells
-  let spanChildren = line.spans.map((span) => spanToNode(span, helpers, theme, charWidth))
-  if (spanChildren.length === 0) {
-    // Empty line: invisible character to maintain height
-    spanChildren = [container({
-      style: { display: "flex", width: 1, height: "100%", flexShrink: 0 },
-      children: [text("m", { color: backgroundColor })],
-    })]
-  }
-
-  // Get line background from last span (for things like diff coloring that
-  // extends to end of line)
+function lineBackground(line: TerminalLine, theme: ImageTheme): string {
   const lastSpan = line.spans[line.spans.length - 1]
-  let lineBackground = backgroundColor
-  if (lastSpan?.bg) {
-    // Respect inverse on last span too
-    if (lastSpan.flags & StyleFlags.INVERSE) {
-      lineBackground = lastSpan.fg ?? theme.background
-    } else {
-      lineBackground = lastSpan.bg
-    }
-  }
-
-  // Spacer fills remaining width with line background
-  const spacer = container({
-    style: {
-      flex: 1,
-      flexShrink: 0,
-      height: "100%",
-      backgroundColor: lineBackground,
-    },
-    children: [],
-  })
-
-  return container({
-    style: {
-      display: "flex",
-      flexDirection: "row",
-      alignItems: "center",
-      flexShrink: 0,
-      width: width ?? "100%",
-      height: lineHeightPx,
-      backgroundColor: lineBackground,
-      overflow: "hidden",
-    },
-    children: [...spanChildren, spacer],
-  })
+  if (!lastSpan) return theme.background
+  if (lastSpan.flags & StyleFlags.INVERSE) return lastSpan.fg ?? theme.background
+  return lastSpan.bg ?? theme.background
 }
 
-/**
- * Convert lines array to a takumi root node ready for rendering.
- */
-function frameToRootNode(
+function spanStyle(span: TerminalSpan): string {
+  const styles: string[] = []
+  if (span.flags & StyleFlags.BOLD) styles.push(`font-weight="700"`)
+  if (span.flags & StyleFlags.ITALIC) styles.push(`font-style="italic"`)
+  if (span.flags & StyleFlags.FAINT) styles.push(`opacity="0.5"`)
+
+  const decorations: string[] = []
+  if (span.flags & StyleFlags.UNDERLINE) decorations.push("underline")
+  if (span.flags & StyleFlags.STRIKETHROUGH) decorations.push("line-through")
+  if (decorations.length > 0) styles.push(`text-decoration="${decorations.join(" ")}"`)
+
+  return styles.length > 0 ? ` ${styles.join(" ")}` : ""
+}
+
+function renderSvgFrame(
   lines: TerminalLine[],
-  helpers: typeof import("@takumi-rs/helpers"),
   options: RenderImageOptions & { imageWidth: number; imageHeight: number },
-) {
-  const { container } = helpers
+): string {
   const {
     imageWidth,
+    imageHeight,
     fontSize = DEFAULT_FONT_SIZE,
     lineHeight = DEFAULT_LINE_HEIGHT,
     paddingX = DEFAULT_PADDING_X,
     paddingY = DEFAULT_PADDING_Y,
     theme = DEFAULT_THEME,
-    imageHeight,
   } = options
 
-  const frameColor = options.frameColor
-  const hasFrame = (paddingX > 0 || paddingY > 0) && frameColor && frameColor !== theme.background
-  const contentWidth = imageWidth - paddingX * 2
   const charWidth = fontSize * CHAR_WIDTH_FACTOR
+  const lineHeightPx = Math.round(fontSize * lineHeight)
+  const contentWidth = imageWidth - paddingX * 2
+  const frameColor = options.frameColor ?? theme.background
+  const fontFamily = `${DEFAULT_FONT_FAMILY}, ${FALLBACK_SYMBOLS_FONT_FAMILY}, monospace`
+  const textYAdjustment = (lineHeightPx - fontSize) / 2 + fontSize * 0.78
+  const parts: string[] = [
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${imageWidth}" height="${imageHeight}" viewBox="0 0 ${imageWidth} ${imageHeight}">`,
+    `<rect x="0" y="0" width="${imageWidth}" height="${imageHeight}" fill="${escapeXml(frameColor)}"/>`,
+    `<rect x="${paddingX}" y="${paddingY}" width="${contentWidth}" height="${Math.max(0, imageHeight - paddingY * 2)}" fill="${escapeXml(theme.background)}"/>`,
+  ]
 
-  const lineNodes = lines.map((line) =>
-    lineToContainerNode(line, helpers, {
-      backgroundColor: theme.background,
-      textColor: theme.text,
-      lineHeight,
-      fontSize,
-      charWidth,
-      theme,
-      width: contentWidth,
-    }),
-  )
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+    const line = lines[lineIndex]!
+    const lineY = paddingY + lineIndex * lineHeightPx
+    const bg = lineBackground(line, theme)
+    parts.push(`<rect x="${paddingX}" y="${lineY}" width="${contentWidth}" height="${lineHeightPx}" fill="${escapeXml(bg)}"/>`)
 
-  // When frameColor differs from background, wrap lines in an inner container
-  // so the padding area shows frameColor while content shows theme.background.
-  // flexGrow: 1 ensures the inner container fills the full content area even
-  // when using a fixed height with fewer lines than the available space.
-  const children = hasFrame
-    ? [
-        container({
-          style: {
-            display: "flex",
-            flexDirection: "column",
-            flexShrink: 0,
-            flexGrow: 1,
-            gap: 0,
-            backgroundColor: theme.background,
-            overflow: "hidden",
-          },
-          children: lineNodes,
-        }),
-      ]
-    : lineNodes
+    let x = paddingX
+    for (const span of line.spans) {
+      const spanWidth = span.width * charWidth
+      const colors = resolveSpanColors(span, theme)
+      if (colors.bg) {
+        parts.push(`<rect x="${x}" y="${lineY}" width="${spanWidth}" height="${lineHeightPx}" fill="${escapeXml(colors.bg)}"/>`)
+      }
+      if (span.text.length > 0) {
+        parts.push(
+          `<text x="${x}" y="${lineY + textYAdjustment}" fill="${escapeXml(colors.fg)}" font-family="${escapeXml(fontFamily)}" font-size="${fontSize}" xml:space="preserve"${spanStyle(span)}>${escapeXml(span.text)}</text>`,
+        )
+      }
+      x += spanWidth
+    }
+  }
 
-  return container({
-    style: {
-      display: "flex",
-      flexDirection: "column",
-      flexShrink: 0,
-      gap: 0,
-      width: imageWidth,
-      height: imageHeight,
-      backgroundColor: hasFrame ? frameColor : theme.background,
-      color: theme.text,
-      fontFamily: `JetBrains Mono Nerd, ${FALLBACK_SYMBOLS_FONT_NAME}, monospace`,
-      fontSize,
-      whiteSpace: "pre",
-      overflow: "hidden",
-      paddingTop: paddingY,
-      paddingBottom: paddingY,
-      paddingLeft: paddingX,
-      paddingRight: paddingX,
-    },
-    children,
-  })
+  parts.push("</svg>")
+  return parts.join("")
 }
 
-// ─────────────────────────────────────────────────────────────
-// High-level Rendering Functions
-// ─────────────────────────────────────────────────────────────
-
-/**
- * Render TerminalData to a single image buffer.
- * Height and width are auto-calculated from content if not specified.
- */
-export async function renderTerminalToImage(
-  data: TerminalData,
-  options: RenderImageOptions = {},
-): Promise<Buffer> {
-  const helpers = await import("@takumi-rs/helpers")
-  const renderer = await getRenderer(options.fontPath)
-
+function prepareFrame(data: TerminalData, options: RenderImageOptions): { lines: TerminalLine[]; imageWidth: number; imageHeight: number; frameColor?: string } {
   const {
     fontSize = DEFAULT_FONT_SIZE,
     lineHeight = DEFAULT_LINE_HEIGHT,
     paddingX = DEFAULT_PADDING_X,
     paddingY = DEFAULT_PADDING_Y,
-    format = "png",
-    quality = 90,
     height,
   } = options
 
-  // Auto-calculate width from terminal columns
-  const imageWidth = options.width ?? calculateAutoWidth(data.cols, fontSize, paddingX)
-
-  // Trim empty lines
+  const imageWidth = options.width ?? calculateAutoWidth({ cols: data.cols, fontSize, paddingX })
   const lines = trimTrailingEmptyLines(data.lines)
-  if (lines.length === 0) {
-    throw new Error("No content to render")
-  }
+  if (lines.length === 0) throw new Error("No content to render")
 
   const lineHeightPx = Math.round(fontSize * lineHeight)
-
-  // Calculate image height
   let visibleLines: TerminalLine[]
   let imageHeight: number
 
@@ -496,37 +299,55 @@ export async function renderTerminalToImage(
     imageHeight = lines.length * lineHeightPx + paddingY * 2
   }
 
-  // Auto-detect frame color from edge cells when padding is set but no explicit frameColor
   const theme = options.theme ?? DEFAULT_THEME
-  const resolvedFrameColor =
-    options.frameColor ?? ((paddingX > 0 || paddingY > 0) ? detectEdgeColor(visibleLines, theme.background) : undefined)
+  const frameColor = options.frameColor ?? ((paddingX > 0 || paddingY > 0) ? detectEdgeColor(visibleLines, theme.background) : undefined)
 
-  // Build node tree
-  const rootNode = frameToRootNode(visibleLines, helpers, {
-    ...options,
-    frameColor: resolvedFrameColor,
-    imageWidth,
-    imageHeight,
-  })
-
-  // Render — multiply dimensions by devicePixelRatio so the output image
-  // has more pixels while keeping the same layout. The renderer uses
-  // width/height as the output canvas size, devicePixelRatio only affects
-  // layout computation (CSS-like pixels), so we scale both.
-  const dpr = options.devicePixelRatio ?? 1
-  const imageBuffer = await renderer.render(rootNode, {
-    width: Math.round(imageWidth * dpr),
-    height: Math.round(imageHeight * dpr),
-    format,
-    quality,
-    devicePixelRatio: dpr,
-  })
-
-  return Buffer.from(imageBuffer)
+  return { lines: visibleLines, imageWidth, imageHeight, frameColor }
 }
 
 /**
- * Render TerminalData to multiple paginated images.
+ * Render TerminalData to deterministic SVG.
+ * Useful for debugging and for callers that want vector terminal output.
+ */
+export function renderTerminalToSvg(data: TerminalData, options: RenderImageOptions = {}): string {
+  const frame = prepareFrame(data, options)
+  return renderSvgFrame(frame.lines, {
+    ...options,
+    frameColor: frame.frameColor,
+    imageWidth: frame.imageWidth,
+    imageHeight: frame.imageHeight,
+  })
+}
+
+/**
+ * Render TerminalData to a PNG image buffer.
+ * Height and width are auto-calculated from content if not specified.
+ */
+export async function renderTerminalToImage(data: TerminalData, options: RenderImageOptions = {}): Promise<Buffer> {
+  await ensureResvgInitialized()
+
+  const frame = prepareFrame(data, options)
+  const svg = renderSvgFrame(frame.lines, {
+    ...options,
+    frameColor: frame.frameColor,
+    imageWidth: frame.imageWidth,
+    imageHeight: frame.imageHeight,
+  })
+
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "zoom", value: options.devicePixelRatio ?? 1 },
+    font: {
+      fontBuffers: getFontBuffers(options.fontPath),
+      defaultFontFamily: DEFAULT_FONT_FAMILY,
+      monospaceFamily: DEFAULT_FONT_FAMILY,
+    },
+  })
+
+  return Buffer.from(resvg.render().asPng())
+}
+
+/**
+ * Render TerminalData to multiple paginated PNG images.
  * Splits content when exceeding maxLinesPerImage.
  * Saves images to temp directory and returns paths.
  */
@@ -534,8 +355,7 @@ export async function renderTerminalToPaginatedImages(
   data: TerminalData,
   options: RenderPaginatedOptions = {},
 ): Promise<PaginatedRenderResult> {
-  const helpers = await import("@takumi-rs/helpers")
-  const renderer = await getRenderer(options.fontPath)
+  await ensureResvgInitialized()
 
   const {
     fontSize = DEFAULT_FONT_SIZE,
@@ -543,61 +363,45 @@ export async function renderTerminalToPaginatedImages(
     paddingX = DEFAULT_PADDING_X,
     paddingY = DEFAULT_PADDING_Y,
     maxLinesPerImage = 70,
-    format = "png",
-    quality = 90,
   } = options
 
-  const imageWidth = options.width ?? calculateAutoWidth(data.cols, fontSize, paddingX)
-
-  // Trim empty lines
+  const imageWidth = options.width ?? calculateAutoWidth({ cols: data.cols, fontSize, paddingX })
   const lines = trimTrailingEmptyLines(data.lines)
-  if (lines.length === 0) {
-    throw new Error("No content to render")
-  }
+  if (lines.length === 0) throw new Error("No content to render")
 
   const lineHeightPx = Math.round(fontSize * lineHeight)
-
-  // Auto-detect frame color from edge cells when padding is set but no explicit frameColor
   const theme = options.theme ?? DEFAULT_THEME
-  const resolvedFrameColor =
-    options.frameColor ?? ((paddingX > 0 || paddingY > 0) ? detectEdgeColor(lines, theme.background) : undefined)
-
-  // Split into chunks
+  const frameColor = options.frameColor ?? ((paddingX > 0 || paddingY > 0) ? detectEdgeColor(lines, theme.background) : undefined)
   const chunks: TerminalLine[][] = []
-  for (let i = 0; i < lines.length; i += maxLinesPerImage) {
-    chunks.push(lines.slice(i, i + maxLinesPerImage))
-  }
+  for (let i = 0; i < lines.length; i += maxLinesPerImage) chunks.push(lines.slice(i, i + maxLinesPerImage))
 
   const images: Buffer[] = []
   const paths: string[] = []
   const timestamp = Date.now()
+  const fontBuffers = getFontBuffers(options.fontPath)
 
   for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
     const chunk = chunks[chunkIndex]!
     const imageHeight = chunk.length * lineHeightPx + paddingY * 2
-
-    const rootNode = frameToRootNode(chunk, helpers, {
+    const svg = renderSvgFrame(chunk, {
       ...options,
-      frameColor: resolvedFrameColor,
+      frameColor,
       imageWidth,
       imageHeight,
     })
-
-    const dpr = options.devicePixelRatio ?? 1
-    const imageBuffer = await renderer.render(rootNode, {
-      width: Math.round(imageWidth * dpr),
-      height: Math.round(imageHeight * dpr),
-      format,
-      quality,
-      devicePixelRatio: dpr,
+    const resvg = new Resvg(svg, {
+      fitTo: { mode: "zoom", value: options.devicePixelRatio ?? 1 },
+      font: {
+        fontBuffers,
+        defaultFontFamily: DEFAULT_FONT_FAMILY,
+        monospaceFamily: DEFAULT_FONT_FAMILY,
+      },
     })
-
-    const buffer = Buffer.from(imageBuffer)
+    const buffer = Buffer.from(resvg.render().asPng())
     images.push(buffer)
 
-    const filename = `terminal-${timestamp}-${chunkIndex + 1}.${format}`
-    const filepath = join(tmpdir(), filename)
-    writeFileSync(filepath, buffer)
+    const filepath = path.join(os.tmpdir(), `terminal-${timestamp}-${chunkIndex + 1}.png`)
+    fs.writeFileSync(filepath, buffer)
     paths.push(filepath)
   }
 
