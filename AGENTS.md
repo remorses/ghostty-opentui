@@ -232,9 +232,8 @@ you can read more examples of opentui react code using gitchamber by listing and
 
 To publish a new version:
 
-1. Bump version in `package.json` (never do major bumps)
-2. Update `CHANGELOG.md` with the new version and changes
-3. Commit: `git commit -am "bump to X.Y.Z, update changelog"`
+1. Add a `.changeset/*.md` file describing the changes (load `changesets` skill for format)
+2. Commit and push to `main`
 4. Push to main: `git push origin main`
 5. CI automatically builds, tests, and publishes to npm on push to main
 6. Create a GitHub release: `gh release create vX.Y.Z --title "vX.Y.Z" --notes "..."`
@@ -243,15 +242,31 @@ To publish a new version:
 Do NOT publish locally. The `prepublishOnly` script blocks local `npm publish`.
 CI handles cross-compilation of native binaries for all platforms before publishing.
 
-## changelog
+## watching CI
 
-after any meaningful change update CHANGELOG.md with the version number and the list of changes made. in concise bullet points
+When asked to "watch CI" or "watch the build", do the following:
 
-in bullet points use nested list and specify for which command exactly are the changes. or group them to make it clear what they cover.
+1. Run `gh run list --limit 5` to find the latest CI run
+2. Watch it with `gh run watch <run_id> --exit-status` (set timeout to 20 minutes, cross-compilation is slow)
+3. If CI passes, check if the **publish** job ran by looking at the run output
+4. If publish ran successfully, a new npm version was released. Check the version in `package.json` and create a GitHub release:
+   - Determine the previous tag: `git tag --sort=-creatordate | head -2` (second one is the previous)
+   - View the diff: `git log <prev_tag>..HEAD --oneline` and `git diff <prev_tag>..HEAD --stat`
+   - Read the changeset files or git log for the release notes
+   - Create the tag first: `git tag v<version>` and `git push origin v<version>`
+   - Create the release with detailed notes covering what changed, including PR numbers and contributor credits:
+     ```
+     gh release create v<version> --title "v<version>" --latest --notes "$(cat <<'EOF'
+     detailed release notes here
+     EOF
+     )"
+     ```
+5. If CI failed, report which step failed and the error annotations
+6. If publish did NOT run (e.g. it was a PR build, or build/test failed), just report CI status. No release needed.
 
-before updating the changelog bump the package.json version field first. NEVER do major bumps
+## changesets
 
-NEVER update existing changelog bullet points for previous version unless you added those bullet points yourself recently and the change is of the same version as it is now.
+After completing a fix or feature, add a `.changeset/*.md` file at the repo root instead of editing CHANGELOG.md. Never edit CHANGELOG.md directly; it is generated at publish time. Never bump `package.json` version manually. Load the `changesets` skill for format and rules.
 
 
 ## zustand

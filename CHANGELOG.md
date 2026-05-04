@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.4.15
+
+- Add OpenTUI frame screenshot rendering
+  - `renderOpenTuiToSvg`, `renderOpenTuiToImage`, and `renderOpenTuiToPaginatedImages` now accept OpenTUI captured frames directly, so callers can convert OpenTUI TUIs to SVG/PNG without first rendering ANSI through Ghostty.
+  - OpenTUI captured `RGBA` colors and text attributes are normalized into the existing SVG renderer, reusing the same geometry rendering for box-drawing, block, braille, and powerline glyphs.
+
+## 1.4.14
+
+- Fix SVG/resvg image rendering for newer terminal glyphs
+  - `renderTerminalToSvg` and `renderTerminalToImage` now position glyphs from Ghostty's exported terminal cell widths instead of stale `wcwidth` widths, fixing Symbols for Legacy Computing, Nerd Font icons, and variation-selector glyphs that were shifted or looked replaced in screenshots.
+  - Added geometry rendering for heavy box-drawing half lines such as `╹`, used by opencode prompt/status chrome.
+
+## 1.4.13
+
+- Replace Takumi image rendering with SVG plus resvg-wasm
+  - `renderTerminalToImage` now builds a deterministic SVG terminal frame and rasterizes it to PNG with `@resvg/resvg-wasm`
+  - Added `renderTerminalToSvg` for callers that want vector output or easier rendering debugging
+  - Removed `@takumi-rs/core` and `@takumi-rs/helpers`; bundled font buffers are passed directly to resvg-wasm
+  - Image export is now PNG-only, removing the old WebP/JPEG format options
+  - Draw common block, box-drawing, braille, and powerline characters as SVG geometry instead of font glyphs
+  - Bundle Noto Sans, Noto Sans Symbols, Noto Sans Symbols 2, and Noto Sans CJK SC as fallback fonts for broader Unicode rendering
+  - Preserve faint, underline, and strikethrough styles on geometry-rendered glyphs
+
 ## 1.4.12
 
 - Honor env-var overrides for bundled font paths

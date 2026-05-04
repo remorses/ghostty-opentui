@@ -9,7 +9,7 @@ Fast ANSI/VT terminal parser powered by [Ghostty's](https://github.com/ghostty-o
 - **TUI Viewer** - Interactive terminal viewer built with [opentui](https://github.com/sst/opentui)
 - **JSON output** - Compact format with merged spans for rendering
 - **Plain text output** - Strip ANSI codes for LLM/text processing
-- **Screenshot rendering** - Export terminal output to PNG/JPEG/WebP images via [takumi-rs](https://github.com/kane50613/takumi)
+- **Screenshot rendering** - Export terminal output to SVG or PNG images via [resvg-wasm](https://github.com/thx/resvg-js)
 - **N-API** - Native Node.js addon using [napigen](https://github.com/cztomsik/napigen) for seamless integration
 
 ## Installation
@@ -265,14 +265,16 @@ const styledText = terminalDataToStyledText(data, highlights)
 
 ### Screenshot / Image Rendering
 
-Render terminal output to PNG, JPEG, or WebP images using [takumi-rs](https://github.com/kane50613/takumi). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment.
+Render terminal output to SVG or PNG images using [resvg-wasm](https://github.com/thx/resvg-js). Uses bundled JetBrains Mono Nerd font with fixed-width grid alignment and Noto fallback fonts for broader Unicode coverage.
 
 ```typescript
 import { ptyToJson } from "ghostty-opentui"
-import { renderTerminalToImage } from "ghostty-opentui/image"
+import { renderTerminalToImage, renderTerminalToSvg } from "ghostty-opentui/image"
 
 const data = ptyToJson("\x1b[32mHello\x1b[0m World", { cols: 80 })
-const png = await renderTerminalToImage(data, { format: "png" })
+const svg = renderTerminalToSvg(data)
+const png = await renderTerminalToImage(data)
+await Bun.write("screenshot.svg", svg)
 await Bun.write("screenshot.png", png)
 ```
 
@@ -280,13 +282,11 @@ Custom theme and font size:
 
 ```typescript
 const image = await renderTerminalToImage(data, {
-  format: "jpeg",
   fontSize: 16,
   lineHeight: 1.4,
   paddingX: 32,
   paddingY: 24,
   theme: { background: "#282c34", text: "#abb2bf" },
-  quality: 95,
 })
 ```
 
@@ -297,25 +297,49 @@ import { renderTerminalToPaginatedImages } from "ghostty-opentui/image"
 
 const result = await renderTerminalToPaginatedImages(data, {
   maxLinesPerImage: 70,
-  format: "png",
 })
 // result.images   - Buffer[]
 // result.paths    - temp file paths
 // result.imageCount
 ```
 
-#### Image rendering performance
+Render an OpenTUI captured frame directly when the UI already exists as OpenTUI buffer data:
 
-Measured on Apple Silicon. The renderer is cached after the first call (font load is one-time).
+```tsx
+import { createTestRenderer } from "@opentui/core/testing"
+import { createRoot } from "@opentui/react"
+import { renderOpenTuiToSvg } from "ghostty-opentui/image"
 
-| Terminal size | Format | Cold (first call) | Warm | Image size |
-|---------------|--------|-------------------:|-----:|-----------:|
-| 80×24 (small) | JPEG | ~35ms | **3ms** | ~4 KB |
-| 80×24 (small) | PNG | ~35ms | **3ms** | ~5 KB |
-| 120×50 (typical) | JPEG | — | **142ms** | ~267 KB |
-| 120×50 (typical) | PNG | — | **123ms** | ~477 KB |
+const { renderer, renderOnce } = await createTestRenderer({ width: 80, height: 24 })
+createRoot(renderer).render(<App />)
+await renderOnce()
 
-`getTerminalData()` (Zig parser) adds ~0.06ms overhead — effectively free.
+const svg = renderOpenTuiToSvg({
+  cols: renderer.currentRenderBuffer.width,
+  rows: renderer.currentRenderBuffer.height,
+  cursor: [0, 0],
+  lines: renderer.currentRenderBuffer.getSpanLines(),
+})
+```
+
+This path skips ANSI parsing and Ghostty entirely. It is for exporting OpenTUI apps that already rendered into `CapturedFrame`-style spans.
+
+#### Image rendering notes
+
+The SVG output is deterministic and easy to inspect. PNG output uses the same SVG frame and loads bundled fonts into resvg-wasm, so screenshots do not depend on system fonts.
+
+Bundled font fallback order:
+
+1. JetBrains Mono Nerd Font
+2. Symbols Nerd Font Mono
+3. Noto Sans
+4. Noto Sans Symbols
+5. Noto Sans Symbols 2
+6. Noto Sans CJK SC
+
+Add more fallback fonts at runtime with `GHOSTTY_OPENTUI_EXTRA_FONT_PATHS`. Use the platform path delimiter, `:` on macOS/Linux and `;` on Windows.
+
+Emoji color fonts are not bundled because the current `@resvg/resvg-wasm` release does not render Noto emoji color fonts correctly.
 
 ### API
 
@@ -415,6 +439,7 @@ import type {
 import {
   renderTerminalToImage,           // single image
   renderTerminalToPaginatedImages, // split large output
+  renderTerminalToSvg,             // deterministic SVG string
 } from "ghostty-opentui/image"
 ```
 
@@ -559,21 +584,14 @@ Use `persistent: true` for streaming/interactive terminals for significant perfo
 
 ### Image Rendering (renderTerminalToImage)
 
-First call includes font load (~35ms one-time). Subsequent calls reuse the cached renderer.
-
-| Terminal size | Format | Warm latency | Output size |
-|---------------|--------|-------------:|------------:|
-| 80×24 | JPEG | 3ms | 4 KB |
-| 80×24 | PNG | 3ms | 5 KB |
-| 120×50 | JPEG | 142ms | 267 KB |
-| 120×50 | PNG | 123ms | 477 KB |
+Image rendering builds an SVG terminal frame first, then rasterizes it to PNG with resvg-wasm. Bundled font buffers are cached after the first render.
 
 ### Key Insights
 
 - **Use `limit` for large files** - 292x faster for 20K lines with `limit=100`
 - **Persistent mode is ~6x faster** for streaming use cases
 - **Linear scaling without limit** - 10K lines takes ~10x longer than 1K lines
-- **Image rendering scales with terminal size** - 3ms for small, ~130ms for typical TUI
+- **Image rendering scales with terminal size** - SVG generation is cheap; PNG rasterization scales with output dimensions
 
 ## Requirements
 
