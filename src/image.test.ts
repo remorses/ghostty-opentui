@@ -5,13 +5,30 @@ import { describe, it, expect, beforeAll } from "bun:test"
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "fs"
 import { join } from "path"
 import { ptyToJson, PersistentTerminal, type TerminalData } from "./ffi.js"
-import { renderTerminalToImage, renderTerminalToPaginatedImages, renderTerminalToSvg } from "./image.js"
+import {
+  renderOpenTuiToImage,
+  renderOpenTuiToSvg,
+  renderTerminalToImage,
+  renderTerminalToPaginatedImages,
+  renderTerminalToSvg,
+  type OpenTuiCapturedFrame,
+  type OpenTuiCapturedRgba,
+} from "./image.js"
 
 const TESTDATA_DIR = join(import.meta.dirname, "..", "testdata")
 const IMAGES_DIR = join(TESTDATA_DIR, "images")
 
 // PNG magic bytes
 const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+const OpenTuiTextAttributes = {
+  BOLD: 1 << 0,
+  DIM: 1 << 1,
+  ITALIC: 1 << 2,
+  UNDERLINE: 1 << 3,
+  INVERSE: 1 << 5,
+  STRIKETHROUGH: 1 << 7,
+} as const
 
 function isPng(buffer: Buffer): boolean {
   return buffer.subarray(0, 8).equals(PNG_HEADER)
@@ -25,6 +42,20 @@ function saveImage(name: string, buffer: Buffer, ext: string = "png"): string {
   const path = join(IMAGES_DIR, `${name}.${ext}`)
   writeFileSync(path, buffer)
   return path
+}
+
+function rgba(hex: string): OpenTuiCapturedRgba {
+  const value = hex.replace("#", "")
+  return {
+    r: Number.parseInt(value.slice(0, 2), 16) / 255,
+    g: Number.parseInt(value.slice(2, 4), 16) / 255,
+    b: Number.parseInt(value.slice(4, 6), 16) / 255,
+    a: 1,
+  }
+}
+
+function transparent(): OpenTuiCapturedRgba {
+  return { r: 0, g: 0, b: 0, a: 0 }
 }
 
 function isCommandAvailable(command: string): boolean {
@@ -226,6 +257,111 @@ describe("rendering options", () => {
 `)
   })
 
+  it("opentui frame to svg — maps captured colors and attributes", () => {
+    const frame: OpenTuiCapturedFrame = {
+      cols: 8,
+      rows: 1,
+      cursor: [0, 0],
+      lines: [{
+        spans: [
+          {
+            text: "OK",
+            fg: rgba("#00ff00"),
+            bg: transparent(),
+            attributes: OpenTuiTextAttributes.BOLD | OpenTuiTextAttributes.UNDERLINE,
+            width: 2,
+          },
+          {
+            text: "INV",
+            fg: rgba("#ff0000"),
+            bg: rgba("#0000ff"),
+            attributes: OpenTuiTextAttributes.INVERSE | OpenTuiTextAttributes.DIM,
+            width: 3,
+          },
+        ],
+      }],
+    }
+
+    const svg = renderOpenTuiToSvg(frame, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+      "<svg xmlns="http://www.w3.org/2000/svg" width="48" height="10" viewBox="0 0 48 10">
+      <rect x="0" y="0" width="48" height="10" fill="#000000"/>
+      <rect x="0" y="0" width="48" height="10" fill="#000000"/>
+      <rect x="0" y="0" width="48" height="10" fill="#ff0000"/>
+      <text x="0" y="7.800000000000001" fill="#00ff00" font-family="JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace" font-size="10" xml:space="preserve" font-weight="700" text-decoration="underline">OK</text>
+      <rect x="12" y="0" width="18" height="10" fill="#ff0000"/>
+      <text x="12" y="7.800000000000001" fill="#0000ff" font-family="JetBrainsMono Nerd Font, Symbols Nerd Font Mono, Noto Sans, Noto Sans Symbols, Noto Sans Symbols2, Noto Sans CJK SC, monospace" font-size="10" xml:space="preserve" opacity="0.5">INV</text>
+      </svg>"
+    `)
+  })
+
+  it("opentui frame to svg — reuses terminal glyph geometry", () => {
+    const frame: OpenTuiCapturedFrame = {
+      cols: 4,
+      rows: 2,
+      cursor: [0, 0],
+      lines: [
+        { spans: [{ text: "┌─┐", fg: rgba("#ffffff"), bg: transparent(), attributes: 0, width: 3 }] },
+        { spans: [{ text: "█⠿", fg: rgba("#ffcc00"), bg: transparent(), attributes: OpenTuiTextAttributes.STRIKETHROUGH, width: 3 }] },
+      ],
+    }
+
+    const svg = renderOpenTuiToSvg(frame, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+      "<svg xmlns="http://www.w3.org/2000/svg" width="24" height="20" viewBox="0 0 24 20">
+      <rect x="0" y="0" width="24" height="20" fill="#000000"/>
+      <rect x="0" y="0" width="24" height="20" fill="#000000"/>
+      <rect x="0" y="0" width="24" height="10" fill="#000000"/>
+      <line x1="3" y1="5" x2="6" y2="5" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="3" y1="5" x2="3" y2="10" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="9" y1="5" x2="12" y2="5" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="6" y1="5" x2="9" y2="5" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="15" y1="5" x2="15" y2="10" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="12" y1="5" x2="15" y2="5" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <rect x="0" y="10" width="24" height="10" fill="#000000"/>
+      <rect x="0" y="10" width="6" height="10" fill="#ffcc00"/>
+      <line x1="0" y1="15.5" x2="6" y2="15.5" stroke="#ffcc00" stroke-width="1" stroke-linecap="butt"/>
+      <circle cx="7.92" cy="11.8" r="1" fill="#ffcc00"/>
+      <circle cx="7.92" cy="14" r="1" fill="#ffcc00"/>
+      <circle cx="7.92" cy="16.2" r="1" fill="#ffcc00"/>
+      <circle cx="10.08" cy="11.8" r="1" fill="#ffcc00"/>
+      <circle cx="10.08" cy="14" r="1" fill="#ffcc00"/>
+      <circle cx="10.08" cy="16.2" r="1" fill="#ffcc00"/>
+      <line x1="6" y1="15.5" x2="12" y2="15.5" stroke="#ffcc00" stroke-width="1" stroke-linecap="butt"/>
+      <path d="M 12 10 L 18 15 L 12 20 Z" fill="#ffcc00"/>
+      <line x1="12" y1="15.5" x2="18" y2="15.5" stroke="#ffcc00" stroke-width="1" stroke-linecap="butt"/>
+      </svg>"
+    `)
+  })
+
+  it("opentui frame to png", async () => {
+    const frame: OpenTuiCapturedFrame = {
+      cols: 4,
+      rows: 1,
+      cursor: [0, 0],
+      lines: [{ spans: [{ text: "PNG", fg: rgba("#ffffff"), bg: transparent(), attributes: 0, width: 3 }] }],
+    }
+
+    const image = await renderOpenTuiToImage(frame, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(isPng(image)).toBe(true)
+    expect(image.length).toBeGreaterThan(100)
+  })
+
   it("svg output — draws terminal glyphs as geometry", () => {
     const data = ptyToJson("┌─┐\n│█│\n└⠿", { cols: 4, rows: 3 })
     const svg = renderTerminalToSvg(data, {
@@ -417,8 +553,9 @@ async function spawnAndCapture(
 }
 
 describe("real command spawns", () => {
-  const itIfOpencodeAvailable = isCommandAvailable("opencode") ? it : it.skip
-  const itIfClaudeAvailable = isCommandAvailable("claude") ? it : it.skip
+  const runExternalCliTests = process.env["GHOSTTY_OPENTUI_TEST_EXTERNAL_COMMANDS"] === "1"
+  const itIfOpencodeAvailable = runExternalCliTests && isCommandAvailable("opencode") ? it : it.skip
+  const itIfClaudeAvailable = runExternalCliTests && isCommandAvailable("claude") ? it : it.skip
 
   itIfOpencodeAvailable("opencode — interactive TUI (snapshot after launch)", async () => {
     // opencode sends initial escape sequences at ~500ms, then renders UI at ~1500ms.

@@ -303,6 +303,27 @@ const result = await renderTerminalToPaginatedImages(data, {
 // result.imageCount
 ```
 
+Render an OpenTUI captured frame directly when the UI already exists as OpenTUI buffer data:
+
+```tsx
+import { createTestRenderer } from "@opentui/core/testing"
+import { createRoot } from "@opentui/react"
+import { renderOpenTuiToSvg } from "ghostty-opentui/image"
+
+const { renderer, renderOnce } = await createTestRenderer({ width: 80, height: 24 })
+createRoot(renderer).render(<App />)
+await renderOnce()
+
+const svg = renderOpenTuiToSvg({
+  cols: renderer.currentRenderBuffer.width,
+  rows: renderer.currentRenderBuffer.height,
+  cursor: [0, 0],
+  lines: renderer.currentRenderBuffer.getSpanLines(),
+})
+```
+
+This path skips ANSI parsing and Ghostty entirely. It is for exporting OpenTUI apps that already rendered into `CapturedFrame`-style spans.
+
 #### Image rendering notes
 
 The SVG output is deterministic and easy to inspect. PNG output uses the same SVG frame and loads bundled fonts into resvg-wasm, so screenshots do not depend on system fonts.

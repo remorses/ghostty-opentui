@@ -9,6 +9,32 @@ import wcwidth from "wcwidth"
 import type { TerminalData, TerminalLine, TerminalSpan } from "./ffi.js"
 import { StyleFlags } from "./ffi.js"
 
+export interface OpenTuiCapturedRgba {
+  r: number
+  g: number
+  b: number
+  a: number
+}
+
+export interface OpenTuiCapturedSpan {
+  text: string
+  fg: OpenTuiCapturedRgba
+  bg: OpenTuiCapturedRgba
+  attributes: number
+  width: number
+}
+
+export interface OpenTuiCapturedLine {
+  spans: OpenTuiCapturedSpan[]
+}
+
+export interface OpenTuiCapturedFrame {
+  cols: number
+  rows: number
+  cursor: [number, number]
+  lines: OpenTuiCapturedLine[]
+}
+
 /** Theme colors for rendering */
 export interface ImageTheme {
   /** Background color as hex string (e.g. "#1a1b26") */
@@ -78,6 +104,15 @@ const NOTO_CJK_FONT_FAMILY = "Noto Sans CJK SC"
 /** Monospace character width as a fraction of font size.
  * JetBrains Mono has 600/1000 em-unit width, so 0.6 is accurate. */
 const CHAR_WIDTH_FACTOR = 0.6
+
+const OPEN_TUI_TEXT_ATTRIBUTES = {
+  BOLD: 1 << 0,
+  DIM: 1 << 1,
+  ITALIC: 1 << 2,
+  UNDERLINE: 1 << 3,
+  INVERSE: 1 << 5,
+  STRIKETHROUGH: 1 << 7,
+} as const
 
 let wasmInitPromise: Promise<void> | undefined
 let cachedFontKey: string | undefined
@@ -224,6 +259,48 @@ function escapeXml(value: string): string {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&apos;")
+}
+
+function colorChannelToHex(value: number): string {
+  const int = Math.max(0, Math.min(255, Math.round(value <= 1 ? value * 255 : value)))
+  return int.toString(16).padStart(2, "0")
+}
+
+function openTuiRgbaToHexOrNull(rgba: OpenTuiCapturedRgba): string | null {
+  if (rgba.a <= 0) return null
+  return `#${colorChannelToHex(rgba.r)}${colorChannelToHex(rgba.g)}${colorChannelToHex(rgba.b)}`
+}
+
+function openTuiAttributesToStyleFlags(attributes: number): number {
+  let flags = 0
+  if (attributes & OPEN_TUI_TEXT_ATTRIBUTES.BOLD) flags |= StyleFlags.BOLD
+  if (attributes & OPEN_TUI_TEXT_ATTRIBUTES.ITALIC) flags |= StyleFlags.ITALIC
+  if (attributes & OPEN_TUI_TEXT_ATTRIBUTES.UNDERLINE) flags |= StyleFlags.UNDERLINE
+  if (attributes & OPEN_TUI_TEXT_ATTRIBUTES.STRIKETHROUGH) flags |= StyleFlags.STRIKETHROUGH
+  if (attributes & OPEN_TUI_TEXT_ATTRIBUTES.INVERSE) flags |= StyleFlags.INVERSE
+  if (attributes & OPEN_TUI_TEXT_ATTRIBUTES.DIM) flags |= StyleFlags.FAINT
+  return flags
+}
+
+function openTuiFrameToTerminalData(frame: OpenTuiCapturedFrame): TerminalData {
+  return {
+    cols: frame.cols,
+    rows: frame.rows,
+    cursor: frame.cursor,
+    cursorVisible: true,
+    cursorStyle: "block",
+    offset: 0,
+    totalLines: frame.lines.length,
+    lines: frame.lines.map((line) => ({
+      spans: line.spans.map((span) => ({
+        text: span.text,
+        fg: openTuiRgbaToHexOrNull(span.fg),
+        bg: openTuiRgbaToHexOrNull(span.bg),
+        flags: openTuiAttributesToStyleFlags(span.attributes),
+        width: span.width,
+      })),
+    })),
+  }
 }
 
 function resolveSpanColors(span: TerminalSpan, theme: ImageTheme): { fg: string; bg: string | null } {
@@ -588,6 +665,14 @@ export function renderTerminalToSvg(data: TerminalData, options: RenderImageOpti
 }
 
 /**
+ * Render an OpenTUI CapturedFrame to deterministic SVG.
+ * This skips ANSI parsing and Ghostty, for apps that already have OpenTUI buffer spans.
+ */
+export function renderOpenTuiToSvg(frame: OpenTuiCapturedFrame, options: RenderImageOptions = {}): string {
+  return renderTerminalToSvg(openTuiFrameToTerminalData(frame), options)
+}
+
+/**
  * Render TerminalData to a PNG image buffer.
  * Height and width are auto-calculated from content if not specified.
  */
@@ -612,6 +697,11 @@ export async function renderTerminalToImage(data: TerminalData, options: RenderI
   })
 
   return Buffer.from(resvg.render().asPng())
+}
+
+/** Render an OpenTUI CapturedFrame to a PNG image buffer. */
+export async function renderOpenTuiToImage(frame: OpenTuiCapturedFrame, options: RenderImageOptions = {}): Promise<Buffer> {
+  return renderTerminalToImage(openTuiFrameToTerminalData(frame), options)
 }
 
 /**
@@ -679,4 +769,12 @@ export async function renderTerminalToPaginatedImages(
     totalLines: lines.length,
     imageCount: chunks.length,
   }
+}
+
+/** Render an OpenTUI CapturedFrame to multiple paginated PNG images. */
+export async function renderOpenTuiToPaginatedImages(
+  frame: OpenTuiCapturedFrame,
+  options: RenderPaginatedOptions = {},
+): Promise<PaginatedRenderResult> {
+  return renderTerminalToPaginatedImages(openTuiFrameToTerminalData(frame), options)
 }

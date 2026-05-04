@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.4.15
+
+- Add OpenTUI frame screenshot rendering
+  - `renderOpenTuiToSvg`, `renderOpenTuiToImage`, and `renderOpenTuiToPaginatedImages` now accept OpenTUI captured frames directly, so callers can convert OpenTUI TUIs to SVG/PNG without first rendering ANSI through Ghostty.
+  - OpenTUI captured `RGBA` colors and text attributes are normalized into the existing SVG renderer, reusing the same geometry rendering for box-drawing, block, braille, and powerline glyphs.
+
 ## 1.4.14
 
 - Fix SVG/resvg image rendering for newer terminal glyphs
