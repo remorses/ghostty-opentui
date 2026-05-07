@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach } from "bun:test"
 import { createRoot, extend } from "@opentui/react"
 import { createTestRenderer, type TestRendererOptions } from "@opentui/core/testing"
-import { GhosttyTerminalRenderable } from "./terminal-buffer.js"
+import { GhosttyTerminalRenderable, setBaseColorRemap } from "./terminal-buffer.js"
 import { act } from "react"
 import type { ReactNode } from "react"
 
@@ -944,6 +944,82 @@ drwx------  71 user  staff  2272 Nov 26 19:44 ..
       expect(() => ref.current?.feed("Data")).toThrow("persistent mode")
       expect(() => ref.current?.reset()).toThrow("persistent mode")
       expect(() => ref.current?.getCursor()).toThrow("persistent mode")
+    })
+  })
+
+  describe("setBaseColorRemap", () => {
+    afterEach(() => {
+      setBaseColorRemap(null)
+    })
+
+    // Walk every captured span and return the first one whose text contains
+    // `ch`.  Spans don't always include trailing whitespace, the renderer can
+    // collapse a row into multiple spans, and spans for "empty" cells often
+    // have no text at all — searching every line is more robust than
+    // assuming a fixed layout.
+    function findCharSpan(frame: ReturnType<typeof JSON.parse>, ch: string) {
+      for (const line of frame.lines) {
+        for (const span of line.spans) {
+          if (span.text && span.text.includes(ch)) return span
+        }
+      }
+      return undefined
+    }
+
+    it("rewrites span foreground colors that match a remap entry", async () => {
+      // ghostty-vt resolves \x1b[36m (palette index 6, "cyan") to its
+      // hardcoded Tomorrow Night cyan #8abeb7. Remap that to a saturated
+      // teal that a host terminal would have configured for ANSI cyan.
+      setBaseColorRemap(new Map([["#8abeb7", "#14a0a0"]]))
+
+      const { renderOnce, captureSpans } = await testRender(
+        <ghostty-terminal ansi={"\x1b[36mC\x1b[m"} cols={10} rows={2} style={{ width: 10, height: 2 }} />,
+        { width: 10, height: 2 },
+      )
+      await renderOnce()
+
+      const frame = captureSpans()
+      const span = findCharSpan(frame, "C")
+      expect(span).toBeDefined()
+      expect(span!.fg.r).toBeCloseTo(0x14 / 255, 2)
+      expect(span!.fg.g).toBeCloseTo(0xa0 / 255, 2)
+      expect(span!.fg.b).toBeCloseTo(0xa0 / 255, 2)
+    })
+
+    it("leaves span colors untouched when no remap is installed", async () => {
+      setBaseColorRemap(null)
+
+      const { renderOnce, captureSpans } = await testRender(
+        <ghostty-terminal ansi={"\x1b[36mC\x1b[m"} cols={10} rows={2} style={{ width: 10, height: 2 }} />,
+        { width: 10, height: 2 },
+      )
+      await renderOnce()
+
+      const frame = captureSpans()
+      const span = findCharSpan(frame, "C")
+      expect(span).toBeDefined()
+      // ghostty's hardcoded ANSI cyan is #8abeb7
+      expect(span!.fg.r).toBeCloseTo(0x8a / 255, 2)
+      expect(span!.fg.g).toBeCloseTo(0xbe / 255, 2)
+      expect(span!.fg.b).toBeCloseTo(0xb7 / 255, 2)
+    })
+
+    it("leaves colors that are not in the remap untouched", async () => {
+      // Remap only blue; cyan should pass through unchanged.
+      setBaseColorRemap(new Map([["#81a2be", "#1844a0"]]))
+
+      const { renderOnce, captureSpans } = await testRender(
+        <ghostty-terminal ansi={"\x1b[36mC\x1b[m"} cols={10} rows={2} style={{ width: 10, height: 2 }} />,
+        { width: 10, height: 2 },
+      )
+      await renderOnce()
+
+      const frame = captureSpans()
+      const span = findCharSpan(frame, "C")
+      expect(span).toBeDefined()
+      expect(span!.fg.r).toBeCloseTo(0x8a / 255, 2)
+      expect(span!.fg.g).toBeCloseTo(0xbe / 255, 2)
+      expect(span!.fg.b).toBeCloseTo(0xb7 / 255, 2)
     })
   })
 })
