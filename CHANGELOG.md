@@ -1,27 +1,38 @@
 # Changelog
 
-## 1.4.15
+## 1.5.0
 
-- Add OpenTUI frame screenshot rendering
-  - `renderOpenTuiToSvg`, `renderOpenTuiToImage`, and `renderOpenTuiToPaginatedImages` now accept OpenTUI captured frames directly, so callers can convert OpenTUI TUIs to SVG/PNG without first rendering ANSI through Ghostty.
-  - OpenTUI captured `RGBA` colors and text attributes are normalized into the existing SVG renderer, reusing the same geometry rendering for box-drawing, block, braille, and powerline glyphs.
+1. **SVG-based image rendering** — replaced Takumi with a deterministic SVG intermediate plus `@resvg/resvg-wasm` for PNG rasterization:
+   - `renderTerminalToImage` builds an SVG terminal frame and rasterizes to PNG
+   - New `renderTerminalToSvg` returns the raw SVG string for vector output and debugging
+   - Removed `@takumi-rs/core` and `@takumi-rs/helpers` dependencies
+   - Image export is now PNG-only (WebP/JPEG format options removed)
+   ```ts
+   import { renderTerminalToSvg, renderTerminalToImage } from "ghostty-opentui/image"
+   const svg = renderTerminalToSvg(data)
+   const png = await renderTerminalToImage(data)
+   ```
 
-## 1.4.14
+2. **OpenTUI captured frame rendering** — render OpenTUI TUIs to SVG/PNG without round-tripping through ANSI and Ghostty:
+   - `renderOpenTuiToSvg(frame, options)`, `renderOpenTuiToImage(frame, options)`, `renderOpenTuiToPaginatedImages(frame, options)`
+   - OpenTUI captured `RGBA` colors and text attributes are normalized into the existing SVG renderer, reusing the same geometry for box-drawing, block, braille, and powerline glyphs
+   ```ts
+   import { renderOpenTuiToSvg } from "ghostty-opentui/image"
+   const svg = renderOpenTuiToSvg({
+     cols: buffer.width,
+     rows: buffer.height,
+     cursor: [0, 0],
+     lines: buffer.getSpanLines(),
+   })
+   ```
 
-- Fix SVG/resvg image rendering for newer terminal glyphs
-  - `renderTerminalToSvg` and `renderTerminalToImage` now position glyphs from Ghostty's exported terminal cell widths instead of stale `wcwidth` widths, fixing Symbols for Legacy Computing, Nerd Font icons, and variation-selector glyphs that were shifted or looked replaced in screenshots.
-  - Added geometry rendering for heavy box-drawing half lines such as `╹`, used by opencode prompt/status chrome.
+3. **Terminal glyph geometry rendering** — common terminal glyphs (U+2580 block elements, U+2500 box drawing, U+2800 braille dots, powerline triangles) are drawn as SVG primitives instead of relying on font glyph fallback. This makes screenshots deterministic and cell-aligned regardless of installed fonts.
 
-## 1.4.13
+4. **Noto fallback fonts bundled** — Noto Sans, Noto Sans Symbols, Noto Sans Symbols 2, and Noto Sans CJK SC ship as fallback fonts for CJK, Greek, Cyrillic, math symbols, and common symbol rendering. Custom fonts can be added via `GHOSTTY_OPENTUI_EXTRA_FONT_PATHS`.
 
-- Replace Takumi image rendering with SVG plus resvg-wasm
-  - `renderTerminalToImage` now builds a deterministic SVG terminal frame and rasterizes it to PNG with `@resvg/resvg-wasm`
-  - Added `renderTerminalToSvg` for callers that want vector output or easier rendering debugging
-  - Removed `@takumi-rs/core` and `@takumi-rs/helpers`; bundled font buffers are passed directly to resvg-wasm
-  - Image export is now PNG-only, removing the old WebP/JPEG format options
-  - Draw common block, box-drawing, braille, and powerline characters as SVG geometry instead of font glyphs
-  - Bundle Noto Sans, Noto Sans Symbols, Noto Sans Symbols 2, and Noto Sans CJK SC as fallback fonts for broader Unicode rendering
-  - Preserve faint, underline, and strikethrough styles on geometry-rendered glyphs
+5. **Fixed glyph positioning for newer terminal characters** — SVG output now uses Ghostty's exported terminal cell widths instead of `wcwidth`, fixing Symbols for Legacy Computing, Nerd Font icons, and variation-selector clusters that were shifted or replaced in screenshots.
+
+6. **Faint, underline, and strikethrough styles preserved on geometry glyphs** — procedural SVG glyphs now wrap geometry in an opacity group for faint styling and draw underline/strikethrough explicitly over the glyph cell.
 
 ## 1.4.12
 
