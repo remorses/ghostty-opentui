@@ -426,6 +426,20 @@ type BoxSide = "light" | "heavy" | "double" | undefined
 
 function boxDrawingSvg(options: GlyphOptions): string | undefined {
   const { char, x, y, width, height, color } = options
+  const cx = x + width / 2
+  const cy = y + height / 2
+  const light = Math.max(1, Math.round(Math.min(width, height) / 10))
+  const heavy = light * 2
+
+  const arcs: Record<string, string> = {
+    "╭": `M ${x + width} ${cy} Q ${cx} ${cy} ${cx} ${y + height}`,
+    "╮": `M ${x} ${cy} Q ${cx} ${cy} ${cx} ${y + height}`,
+    "╯": `M ${cx} ${y} Q ${cx} ${cy} ${x} ${cy}`,
+    "╰": `M ${cx} ${y} Q ${cx} ${cy} ${x + width} ${cy}`,
+  }
+  const arcPath = arcs[char]
+  if (arcPath) return `<path d="${arcPath}" fill="none" stroke="${escapeXml(color)}" stroke-width="${light}" stroke-linecap="round"/>`
+
   const lines: Record<string, [BoxSide, BoxSide, BoxSide, BoxSide]> = {
     "─": [undefined, "light", undefined, "light"], "━": [undefined, "heavy", undefined, "heavy"],
     "│": ["light", undefined, "light", undefined], "┃": ["heavy", undefined, "heavy", undefined],
@@ -446,10 +460,6 @@ function boxDrawingSvg(options: GlyphOptions): string | undefined {
   if (!sides) return undefined
 
   const [up, right, down, left] = sides
-  const cx = x + width / 2
-  const cy = y + height / 2
-  const light = Math.max(1, Math.round(Math.min(width, height) / 10))
-  const heavy = light * 2
   const drawSide = (options: { side: BoxSide; x1: number; y1: number; x2: number; y2: number }) => {
     const { side, x1, y1, x2, y2 } = options
     if (!side) return ""

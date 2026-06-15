@@ -344,6 +344,41 @@ describe("rendering options", () => {
     `)
   })
 
+  it("opentui frame to svg — paints rounded box-drawing corners as arcs", () => {
+    const frame: OpenTuiCapturedFrame = {
+      cols: 3,
+      rows: 2,
+      cursor: [0, 0],
+      lines: [
+        { spans: [{ text: "╭─╮", fg: rgba("#ffffff"), bg: transparent(), attributes: 0, width: 3 }] },
+        { spans: [{ text: "╰─╯", fg: rgba("#ffffff"), bg: transparent(), attributes: 0, width: 3 }] },
+      ],
+    }
+
+    const svg = renderOpenTuiToSvg(frame, {
+      fontSize: 10,
+      lineHeight: 1,
+      theme: { background: "#000000", text: "#ffffff" },
+    })
+
+    expect(svg.replaceAll("><", ">\n<")).toMatchInlineSnapshot(`
+      "<svg xmlns="http://www.w3.org/2000/svg" width="18" height="20" viewBox="0 0 18 20">
+      <rect x="0" y="0" width="18" height="20" fill="#000000"/>
+      <rect x="0" y="0" width="18" height="20" fill="#000000"/>
+      <rect x="0" y="0" width="18" height="10" fill="#000000"/>
+      <path d="M 6 5 Q 3 5 3 10" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+      <line x1="9" y1="5" x2="12" y2="5" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="6" y1="5" x2="9" y2="5" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <path d="M 12 5 Q 15 5 15 10" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+      <rect x="0" y="10" width="18" height="10" fill="#000000"/>
+      <path d="M 3 10 Q 3 15 6 15" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+      <line x1="9" y1="15" x2="12" y2="15" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <line x1="6" y1="15" x2="9" y2="15" stroke="#ffffff" stroke-width="1" stroke-linecap="butt"/>
+      <path d="M 15 10 Q 15 15 12 15" fill="none" stroke="#ffffff" stroke-width="1" stroke-linecap="round"/>
+      </svg>"
+    `)
+  })
+
   it("opentui frame to png", async () => {
     const frame: OpenTuiCapturedFrame = {
       cols: 4,
