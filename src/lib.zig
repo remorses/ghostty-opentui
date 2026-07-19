@@ -304,6 +304,25 @@ pub fn writeJsonOutput(
         output_idx += 1;
     }
 
+    try writer.writeAll("],\"wrappedLines\":[");
+    // Second pass: emit per-line soft-wrap flags
+    var wrap_iter = screen.pages.rowIterator(.right_down, .{ .screen = .{} }, null);
+    var wrap_row_idx: usize = 0;
+    var wrap_output_idx: usize = 0;
+    while (wrap_iter.next()) |wrap_pin| {
+        if (wrap_row_idx < offset) {
+            wrap_row_idx += 1;
+            continue;
+        }
+        if (limit) |lim| {
+            if (wrap_output_idx >= lim) break;
+        }
+        if (wrap_output_idx > 0) try writer.writeByte(',');
+        const row = wrap_pin.rowAndCell().row;
+        try writer.writeAll(if (row.wrap) "true" else "false");
+        wrap_row_idx += 1;
+        wrap_output_idx += 1;
+    }
     try writer.writeAll("]}");
 }
 
@@ -518,7 +537,8 @@ fn getTerminalJson(id: u32, offset: u32, limit: u32) ![]const u8 {
     return output.items;
 }
 
-/// Get plain text output from a persistent terminal
+/// Get plain text output from a persistent terminal.
+/// Soft-wrapped lines are unwrapped so only real newlines appear.
 fn getTerminalText(id: u32) ![]const u8 {
     terminals_mutex.lock();
     defer terminals_mutex.unlock();
@@ -530,7 +550,10 @@ fn getTerminalText(id: u32) ![]const u8 {
     // Note: arena is reset at the START of the next call, not here.
 
     var builder: std.Io.Writer.Allocating = .init(alloc);
-    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&term.terminal, .plain);
+    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&term.terminal, .{
+        .emit = .plain,
+        .unwrap = true,
+    });
     try fmt.format(&builder.writer);
 
     return builder.writer.buffered();
@@ -646,7 +669,7 @@ fn ptyToText(input: []const u8, cols: u32, rows: u32) ![]const u8 {
 
     // Use the ghostty formatter with plain format to get just the text
     var builder: std.Io.Writer.Allocating = .init(alloc);
-    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .plain);
+    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .{ .emit = .plain, .unwrap = true });
     try fmt.format(&builder.writer);
 
     return builder.writer.buffered();
@@ -981,4 +1004,79 @@ test "background color with EL extends to full line width" {
 
     // Should have a span extending to 20 columns with a background color
     try testing.expect(std.mem.indexOf(u8, json, ",80]") != null);
+}
+
+test "getTerminalText unwraps soft-wrapped lines" {
+    const alloc = testing.allocator;
+
+    // Use a narrow terminal (10 cols) so a long line wraps
+    var t: ghostty_vt.Terminal = try .init(alloc, .{ .cols = 10, .rows = 24 });
+    defer t.deinit(alloc);
+
+    t.modes.set(.linefeed, true);
+
+    var stream = t.vtStream();
+    defer stream.deinit();
+
+    // Feed a 25-char line (will soft-wrap into 3 rows of 10+10+5)
+    try stream.nextSlice("AAAAAAAAAA" ++ "BBBBBBBBBB" ++ "CCCCC\n" ++ "second");
+
+    // getText with unwrap should give original logical lines
+    var builder: std.Io.Writer.Allocating = .init(alloc);
+    defer builder.deinit();
+    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .{
+        .emit = .plain,
+        .unwrap = true,
+    });
+    try fmt.format(&builder.writer);
+    const text = builder.writer.buffered();
+
+    try testing.expectEqualStrings("AAAAAAAAAABBBBBBBBBBCCCCC\nsecond", text);
+}
+
+test "getTerminalText without unwrap preserves visual wrapping" {
+    const alloc = testing.allocator;
+
+    var t: ghostty_vt.Terminal = try .init(alloc, .{ .cols = 10, .rows = 24 });
+    defer t.deinit(alloc);
+
+    t.modes.set(.linefeed, true);
+
+    var stream = t.vtStream();
+    defer stream.deinit();
+
+    try stream.nextSlice("AAAAAAAAAA" ++ "BBBBBBBBBB" ++ "CCCCC\n" ++ "second");
+
+    var builder: std.Io.Writer.Allocating = .init(alloc);
+    defer builder.deinit();
+    var fmt: formatter.TerminalFormatter = formatter.TerminalFormatter.init(&t, .plain);
+    try fmt.format(&builder.writer);
+    const text = builder.writer.buffered();
+
+    // Without unwrap, soft wraps produce newlines
+    try testing.expectEqualStrings("AAAAAAAAAA\nBBBBBBBBBB\nCCCCC\nsecond", text);
+}
+
+test "writeJsonOutput includes wrappedLines array" {
+    const alloc = testing.allocator;
+
+    var t: ghostty_vt.Terminal = try .init(alloc, .{ .cols = 10, .rows = 24 });
+    defer t.deinit(alloc);
+
+    t.modes.set(.linefeed, true);
+
+    var stream = t.vtStream();
+    defer stream.deinit();
+
+    // 25-char line wraps into 3 rows, then a hard newline, then "end"
+    try stream.nextSlice("AAAAAAAAAA" ++ "BBBBBBBBBB" ++ "CCCCC\n" ++ "end");
+
+    var output: std.ArrayListAligned(u8, null) = .empty;
+    defer output.deinit(alloc);
+
+    try writeJsonOutput(output.writer(alloc), &t, 0, null);
+
+    const json = output.items;
+    // First two rows are soft-wrapped, rest have hard newlines or are empty
+    try testing.expect(std.mem.indexOf(u8, json, "\"wrappedLines\":[true,true,false,false") != null);
 }
