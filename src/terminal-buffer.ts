@@ -12,6 +12,28 @@ import wcwidth from "wcwidth"
 const DEFAULT_FG = RGBA.fromHex("#d4d4d4")
 const DEFAULT_BG = RGBA.fromHex("#1e1e1e")
 
+let baseColorRemap: Map<string, string> | null = null
+
+/**
+ * Install a hex→hex remap that rewrites span foreground/background colors
+ * before they are converted to RGBA.
+ *
+ * ghostty-vt resolves palette-indexed colors (`\x1b[3Nm`, `\x1b[9Nm`,
+ * `\x1b[38;5;Nm` with N < 16) against its own hardcoded base 16 theme.
+ * Consumers that re-emit rendered chunks to a host terminal — e.g. an
+ * outer terminal multiplexer — usually want those palette indices to land
+ * in the *host's* user-configured palette instead.  This hook lets the
+ * consumer install a `Map<ghostty-hex, host-hex>` after probing the host
+ * via OSC 4, projecting ghostty's defaults onto the host's theme without
+ * any change to the underlying Zig palette.
+ *
+ * Hex strings must match the format produced by lib.zig's writeColor
+ * (lowercase, "#rrggbb"). Pass null to clear.
+ */
+export function setBaseColorRemap(remap: Map<string, string> | null): void {
+  baseColorRemap = remap
+}
+
 type WidthAwareChunk = TextChunk & {
   cellWidth: number
 }
@@ -73,8 +95,12 @@ function getLineStarts(lineInfo: LineInfoWithStarts): number[] {
 function convertSpanToChunk(span: TerminalSpan): WidthAwareChunk {
   const { text, fg, bg, flags, width } = span
 
-  let fgColor = fg ? RGBA.fromHex(fg) : DEFAULT_FG
-  let bgColor = bg ? RGBA.fromHex(bg) : undefined
+  const remap = baseColorRemap
+  const fgHex = fg && remap ? remap.get(fg) ?? fg : fg
+  const bgHex = bg && remap ? remap.get(bg) ?? bg : bg
+
+  let fgColor = fgHex ? RGBA.fromHex(fgHex) : DEFAULT_FG
+  let bgColor = bgHex ? RGBA.fromHex(bgHex) : undefined
 
   if (flags & StyleFlags.INVERSE) {
     const temp = fgColor
